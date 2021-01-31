@@ -9,7 +9,7 @@ server.use(cors())
 const bodyParser = require('body-parser');
 
 //Conexion con archivos de rutas
-//const routes = require('./routes/routes');
+const routes = require('./routes/routes');
 
 //Inicializar servidor
 server.listen(3001, () => {
@@ -20,4 +20,4 @@ server.listen(3001, () => {
 server.use(bodyParser.json());
 
 //Routes Handler
-//server.use('/', routes);
+server.use('/', routes);
