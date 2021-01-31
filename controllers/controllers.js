@@ -1,16 +1,43 @@
 var datefns = require('date-fns')
 
-const db = require('../database/db');
+const db = require('../db/db');
 const controllers = {};
 const bodyparser = require('body-parser')
 const express = require('express');
 const { response } = require('express');
 const router = express.Router()
 
-controllers.dbOK = (req, res) => {
-    res.send("vamos bien")
-}
+controllers.getProductos = async (req, res) => {
 
+
+
+try {
+    let resultSelect = await db.sequelize.query(
+        `SELECT CODIGO, DESCRIP, PRECIO FROM MRCCENTRAL.DBO.ARTICULO WHERE SEVENDE=1 AND INVISIBL=0 AND WEB=1 ORDER BY DESCRIP`,
+        {
+            type: db.sequelize.QueryTypes.SELECT
+        })
+        
+        .then(resultSelect => {
+           
+              let resultToSend = resultSelect.map( item => { 
+                return { id: item.CODIGO , descripcion : item.DESCRIP, precio: item.PRECIO }; 
+                
+              });  
+              for(var n =0; n < resultToSend.length; n++){
+                resultToSend[n].id = parseInt(resultToSend[n].id);
+              }
+              res.json(resultToSend)
+              
+        })
+        
+
+
+}
+catch{
+res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
+}
+}
 /*
 controllers.usuarioExiste = async (req, res) => {
     const datos = req.body;

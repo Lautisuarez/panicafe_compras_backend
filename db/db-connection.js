@@ -1,5 +1,5 @@
 const db_host = "780e077ce364.sn.mynetname.net";
-const db_name = "local";
+const db_name = "master";
 const db_user = "sa";
 const db_password = "Panicafe2018";
 const db_port = "14338";

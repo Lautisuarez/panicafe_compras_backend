@@ -8,13 +8,10 @@ const middlewares = {};
 
 
 //Middleware para ver si estan todos los campos obligatorios completos para reservar el turno
-middlewares.checkDbConnection = async (req, res, next) => {
+//middlewares.checkDbConnection = async (req, res, next) => {
    
-    let dbStatus = await db.connect()
-    console.log(dbStatus)
-    //revisar la conexion
-    next()
-}
+   
+
 /*
 middlewares.chequearTurnoDisponible = async (req, res, next) => {
     const idTurno = req.body.idTurno;
