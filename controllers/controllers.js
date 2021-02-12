@@ -26,6 +26,7 @@ try {
               });  
               for(var n =0; n < resultToSend.length; n++){
                 resultToSend[n].id = parseInt(resultToSend[n].id);
+                resultToSend[n].descripcion= resultToSend[n].descripcion.trim()
               }
               res.json(resultToSend)
               
@@ -37,6 +38,17 @@ try {
 catch{
 res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
 }
+}
+
+controllers.postPedido = async (req, res) => {
+    try {
+        let pedido = req.body
+        console.log(pedido)
+        res.status(201).json("pedido creado")
+
+    } catch {
+        res.status(500).json(`Error al ingresar el pedido`)
+    }
 }
 /*
 controllers.usuarioExiste = async (req, res) => {

@@ -7,6 +7,7 @@ const middlewares = require('../middlewares/middlewares');
 
 //Traemos los productos de la DB de mr comanda
 router.get('/productos', controllers.getProductos); //revisarss
+router.post('/pedidos', middlewares.checkPedidos, controllers.postPedido)
 
 
 

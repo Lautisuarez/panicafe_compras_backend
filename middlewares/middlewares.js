@@ -67,3 +67,8 @@ middlewares.chequearExistenciaUsuario = async (req, res, next) => {
 */
 
 module.exports = middlewares
+
+middlewares.checkPedidos = (req, res, next) => {
+    console.log("pasando por el middleware")
+    next()
+}
