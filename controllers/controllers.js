@@ -39,15 +39,41 @@ catch{
 res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
 }
 }
+// insert into MRCCENTRAL.DBO.car_pedidos (idCliente , fecha, PrecioTotal ) values (2, '19/2/2021 09:17:11', 200);
 
 controllers.postPedido = async (req, res) => {
+    let pedido = req.body
     try {
-        let pedido = req.body
-        console.log(pedido)
+        
+        //Obtengo en el ultimo IdPedido
+        let idPedidoFromSQL = await db.sequelize.query(
+            `SELECT top 1 idPedido FROM MRCCENTRAL.DBO.car_pedidos order by idPedido DESC ;`,
+            {
+                type: db.sequelize.QueryTypes.SELECT
+            }
+        )
+        .then(pedido => {
+            console.log(pedido)
+        } )
+           /* let insertPedido = db.sequelize.query(
+                `insert into MRCCENTRAL.DBO.car_pedidos (idCliente , fecha, PrecioTotal ) values (${pedido.idCliente}, ${pedido.fecha}, ${pedido.precioTotal});`
+            )
+            //res.json(idPedidoFromSQL[0].idPedido)
+
+        })
+        .then (idPedidoFromSQL, pedido => {
+            for (let i = 0; i <= pedido.productos.length; i++) {
+                let insertProductos = `insert into MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad) 
+                VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${pedido.productos[i].idProducto}, ${pedido.productos[i].descripcion}, ${pedido.productos[i].preciounit},
+                    , ${pedido.productos[i].cantidad});`
+            }
+
+        } )*/
+
         res.status(201).json("pedido creado")
 
-    } catch {
-        res.status(500).json(`Error al ingresar el pedido`)
+    } catch(e) {
+        res.status(500).json(`Error al ingresar el pedido ${e}`)
     }
 }
 /*
