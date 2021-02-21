@@ -82,4 +82,13 @@ controllers.postPedido = async (req, res) => {
     }
 }
 
+
+//Gestion de usuarios
+
+controllers.addUser = async (req, res) => {
+    datos = req.body
+    console.log(datos)
+    
+}
+
 module.exports = controllers;

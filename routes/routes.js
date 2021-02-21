@@ -9,6 +9,8 @@ const middlewares = require('../middlewares/middlewares');
 router.get('/productos', controllers.getProductos); //revisarss
 router.post('/pedidos', middlewares.checkPedidos, controllers.postPedido)
 
+//router.post('/login', middlewares.checkDatos.controllers.login)
+router.post('/adduser', middlewares.checkIsAdmin, controllers.addUser)
 
 
 

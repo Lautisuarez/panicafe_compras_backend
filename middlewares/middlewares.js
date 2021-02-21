@@ -6,7 +6,10 @@ const Sequelize = require('sequelize');
 const middlewares = {};
  
 
-
+middlewares.checkIsAdmin = async (req, res, next) => {
+    console.log("revisar si es admin")
+    next()
+}
 //Middleware para ver si estan todos los campos obligatorios completos para reservar el turno
 //middlewares.checkDbConnection = async (req, res, next) => {
    

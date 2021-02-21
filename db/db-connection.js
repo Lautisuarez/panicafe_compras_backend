@@ -13,3 +13,16 @@ module.exports = {
     db_port,
     db_instance
 };
+
+const mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost:27017/panicafe');
+
+const usuarios = mongoose.model('users' , {
+    id : Number,
+    isAdmin: Number,
+    usuario: String,
+    pass: String,
+    nombre: String,
+    email: String
+});
+module.exports = { mongoose, usuarios}
