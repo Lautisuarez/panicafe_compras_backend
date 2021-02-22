@@ -6,6 +6,7 @@ const bodyparser = require('body-parser')
 const express = require('express');
 const { response } = require('express');
 const router = express.Router()
+const mongo = require('../db/mongo')
 
 controllers.getProductos = async (req, res) => {
 
@@ -87,8 +88,45 @@ controllers.postPedido = async (req, res) => {
 
 controllers.addUser = async (req, res) => {
     datos = req.body
-    console.log(datos)
+    
+    let createMongoUser = {
+        isAdmin: datos.isAdmin,
+        usuario: datos.usuario,
+        pass: datos.pass,
+        nombre: datos.nombre,
+        email: datos.email
+    }
+    
+    //console.log(mongo.mongoose.connection.readyState);
+    const saveToMongo = new mongo.usuarios(createMongoUser)
+    
+    saveToMongo.save()
+    res.json("usuario creado") //mandar state y revisar primero
     
 }
+
+controllers.login = async (req, res) => {
+    datos = req.body
+    const query = mongo.usuarios.find({usuario:datos.usuario})
+    .then(function(result){
+        ab = result[0].usuario
+        ac = result[0].pass 
+      //  console.log(ab, ac, datos.usuario, datos.pass)
+        if ((ab === datos.usuario) && (ac === datos.pass)) {
+           res.json("ya te mando el JWT")
+        } else {
+           res.json("BAD")
+        }
+
+    } .catch (
+        res.json("BADD")
+    )
+    )
+    
+   
+}
+
+
+
 
 module.exports = controllers;

@@ -2,7 +2,7 @@
 const express = require('express');
 const db = require ('../db/db')
 const Sequelize = require('sequelize');
-
+const mongo = require('../db/mongo')
 const middlewares = {};
  
 
@@ -10,6 +10,22 @@ middlewares.checkIsAdmin = async (req, res, next) => {
     console.log("revisar si es admin")
     next()
 }
+
+middlewares.checkIsExist = async (req, res, next) => {
+    const usuarioBody = req.body.usuario
+    let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
+        console.log(result, "hoooooolllllaaaaaa")
+        if (result[0].usuario == usuarioBody) {
+            res.json(`ya existe el usuario ${usuarioBody}`)
+        } else {
+            console.log("se va ok")
+            next()
+        }
+}    
+    ) 
+
+}
+
 //Middleware para ver si estan todos los campos obligatorios completos para reservar el turno
 //middlewares.checkDbConnection = async (req, res, next) => {
    
