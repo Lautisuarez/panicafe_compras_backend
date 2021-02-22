@@ -13,8 +13,16 @@ const routes = require('./routes/routes');
 
 //Inicializar servidor
 server.listen(3001, () => {
-    const date = new Date();
-    console.log("Server initialized at port 3001" + date);
+    t = new Date()
+    z = t.getTimezoneOffset() * 60 * 1000
+    tLocal = t-z
+    tLocal = new Date(tLocal)
+    date = tLocal.toISOString()
+    date = date.slice(0, 19)
+    date = date.replace('T', ' ')
+
+
+    console.log("Server initialized at port 3001 " + date);
 })
 //Middlewares
 server.use(bodyParser.json());

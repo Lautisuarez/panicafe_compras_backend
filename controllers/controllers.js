@@ -6,6 +6,7 @@ const bodyparser = require('body-parser')
 const express = require('express');
 const { response } = require('express');
 const router = express.Router()
+const mongo = require('../db/mongo')
 
 controllers.getProductos = async (req, res) => {
 
@@ -19,7 +20,7 @@ try {
         })
         
         .then(resultSelect => {
-           
+              
               let resultToSend = resultSelect.map( item => { 
                 return { id: item.CODIGO , descripcion : item.DESCRIP, precio: item.PRECIO }; 
                 
@@ -41,228 +42,91 @@ res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
 }
 
 controllers.postPedido = async (req, res) => {
+    
     try {
         let pedido = req.body
-        console.log(pedido)
-        res.status(201).json("pedido creado")
-
-    } catch {
-        res.status(500).json(`Error al ingresar el pedido`)
-    }
-}
-/*
-controllers.usuarioExiste = async (req, res) => {
-    const datos = req.body;
-    await db.sequelize.query (
-        "UPDATE `turnoadmin` SET `disponible` = 0 WHERE `idTurno` = " + `${datos.idTurno}` + ";"
-    )
-        let getIdTurno = await db.sequelize.query(
-            `SELECT idCliente FROM clientes WHERE email =  "${datos.email}"`,
+        //Obtengo en el ultimo IdPedido
+        let idPedidoFromSQL =  await db.sequelize.query(
+            `SELECT top 1 idPedido FROM MRCCENTRAL.DBO.car_pedidos order by idPedido DESC ;`,
             {
                 type: db.sequelize.QueryTypes.SELECT
-            })
-            .then( getIdTurno => {
+            }
+            
+            )
+           //Cargo la tabla pedidos
+        .then(idPedidoFromSQL  => {
 
-                 db.sequelize.query(
-                    `INSERT INTO turnosclientes (idCliente, idTurno) VALUES (${getIdTurno[0].idCliente}, ${datos.idTurno})`
+            let insertPedido = db.sequelize.query(
+                `insert into MRCCENTRAL.DBO.car_pedidos (idCliente , fecha, PrecioTotal ) values (${pedido.idCliente}, '${pedido.fecha}', ${pedido.precioTotal});`
+            )
+            // Cargo la tabla productos con los pedidos
+            .then (response => {
+                pedido2 = req.body
+
+            for (let i = 0; i <= pedido2.productos.length -1; i++) {
+               
+                let insertProductos =  db.sequelize.query(
+                    `insert into MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad) 
+                VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${pedido2.productos[i].idProducto}, '${pedido2.productos[i].descripcion}', ${pedido2.productos[i].preciounit},
+                ${pedido2.productos[i].cantidad});`
                 )
-                res.json("ejecutando")
-            })
-}
-
-controllers.generateTurno = async(req,res)=>{
-
-    const {fechaHora, cantidad} = req.body;
-
-    let fechaInicio = new Date(fechaHora)
-   
-
-    for (let index = 0; index < cantidad; index++) {
-
+            }
+        } 
+        )
         
-        await db.sequelize.query (
-            `INSERT INTO turnoadmin (horaInicio, disponible) VALUES ("${datefns.format(fechaInicio, 'yyyy-MM-dd HH:mm:ss')}", 1)`
-        )
-       
-        fechaInicio = datefns.addMinutes(fechaInicio,30)
+        } )
 
+        res.status(201).json("pedido creado")
+
+    } catch(e) {
+        res.status(500).json(`Error al ingresar el pedido ${e}`)
     }
-    res.json(fechaInicio)
-}
-
-controllers.getTurnosDisponibles = async(req, res) => {
-   let turnos = await db.sequelize.query(
-        `SELECT * FROM turnoadmin WHERE horaInicio > NOW() AND disponible = 1`)
-    res.json(turnos);
-}
-
-controllers.usuarioNoExiste = async (req, res, next) => {
-   
-    const nuevoTurno = req.body;
-    await db.sequelize.query(
-        `SELECT * FROM clientes WHERE email =  "${nuevoTurno.email}"`,
-        {
-            type: db.sequelize.QueryTypes.SELECT,
-            replacements: {email: nuevoTurno.email}
-        })
-        .then (response => {
-           
-            if(response.length !== 0){
-                
-            next()
-            } else { 
-                db.sequelize.query(
-       
-                    `INSERT INTO clientes (
-                        name,
-                        email,
-                        phone
-                    )
-                    VALUE (
-                        :name,
-                        :email,
-                        :phone
-                    )`,
-                    
-                    {
-                        replacements: nuevoTurno
-                    })
-                next()
-                }
-            }
-        )
-    .catch(err => {
-        console.log(err)
-        res.status(500).json({
-            mensaje: 'Internal Server Error',
-            err: err
-        });
-    })
 }
 
 
-let turnosDeCliente = [];
+//Gestion de usuarios
 
-controllers.turnosReservados = async (req, res, next) => {
-    fields = req.body
+controllers.addUser = async (req, res) => {
+    datos = req.body
     
-    let getIdTurno = await db.sequelize.query(
-        `SELECT idCliente FROM clientes WHERE email =  "${fields.email}"`,
-        {
-            type: db.sequelize.QueryTypes.SELECT
-        })
-        .then( getIdTurno => {
-
-            turnosDeCliente = db.sequelize.query(
-               `SELECT idTurno FROM turnosclientes WHERE idCliente = ${getIdTurno[0].idCliente}`,
-               {
-                   type: db.sequelize.QueryTypes.SELECT
-               }
-           )
-           
-           .then(turnosDeCliente => {
-            let turnosResult = [];
-            
-            /* hacer un for y un push para armar los datos a devolver)
-            
-           for(let index = 0; index < turnosDeCliente.length; index++) {
-               let querys = db.sequelize.query(
-                   `SELECT * FROM turnoadmin WHERE idTurno = ${turnosDeCliente[index].idTurno} and horaInicio > now()`,
-                   {
-                       type: db.sequelize.QueryTypes.SELECT
-                   }
-               )
-               .then(querys => {
-                   console.log(querys)
-               if (querys != ""){
-                turnosResult.push(querys[0])
-               } 
-               
-               if (index == turnosDeCliente.length -1) {
-                res.json(turnosResult)
-               } else {
-                   console.log(index, turnosDeCliente.length)
-               }
-               }) 
-               
-           }
-           
-           })
-            }
-            
-        )
-}
-/*
-controllers.turnosReservados1 = async (req, res, next) => {
-idTurnoCliente = turnosDeCliente
-
-controllers.turnosReservados1 = async (req, res, next) => {
-    fields = req.body
-    let turnosDeCliente = [];
-    let getIdTurno = await db.sequelize.query(
-        `SELECT idCliente FROM clientes WHERE email =  "${fields.email}"`,
-        {
-            type: db.sequelize.QueryTypes.SELECT
-        })
-        .then( getIdTurno => {
-
-            turnosDeCliente = db.sequelize.query(
-               `SELECT idTurno FROM turnosclientes WHERE idCliente = ${getIdTurno[0].idCliente}`,
-               {
-                   type: db.sequelize.QueryTypes.SELECT
-               }
-           )
-           .then(turnosDeCliente => {
-            res.json(turnosDeCliente) 
-           })
-            }
-            
-        )
+    let createMongoUser = {
+        isAdmin: datos.isAdmin,
+        usuario: datos.usuario,
+        pass: datos.pass,
+        nombre: datos.nombre,
+        email: datos.email
+    }
+    
+    //console.log(mongo.mongoose.connection.readyState);
+    const saveToMongo = new mongo.usuarios(createMongoUser)
+    
+    saveToMongo.save()
+    res.json("usuario creado") //mandar state y revisar primero
+    
 }
 
-then(turnosDeCliente => {
-    let fechas = await db.sequelize.query(
-        `SELECT horaInicio FROM turnoadmin where idTurno =${turnosDeCliente}`,
-        {
-            type: db.sequelize.QueryTypes.SELECT
+controllers.login = async (req, res) => {
+    datos = req.body
+    const query = mongo.usuarios.find({usuario:datos.usuario})
+    .then(function(result){
+        ab = result[0].usuario
+        ac = result[0].pass 
+      //  console.log(ab, ac, datos.usuario, datos.pass)
+        if ((ab === datos.usuario) && (ac === datos.pass)) {
+           res.json("ya te mando el JWT")
+        } else {
+           res.json("BAD")
         }
 
-//controller.CancelarTurno
-controllers.cancelarTurno = async (req, res, next) => {
-    const idTurno = req.body;
-    let cita = [];
-    let idUser = await db.sequelize.query(
-        `SELECT idCliente from clientes WHERE email = '${idTurno.email}'`
+    } .catch (
+        res.json("BADD")
     )
-        
-        .then(idUser => {
-            cita = db.sequelize.query(
-            `DELETE FROM turnosclientes WHERE (idCliente = ${idUser[0][0].idCliente} AND idTurno = ${idTurno.idTurno});`)
-        }) .then(cita => {
-            res.status("Paso a la siguiente validacion")
-        }) 
-        .catch(err => {
-            res.status(500).json({
-                mensaje: 'Internal Server Error',
-                err: err
-            });
-        });
-        next(); 
+    )
+    
+   
 }
 
-controllers.disponibilizarTurno = async (req, res) => {
-    const idTurno1 = req.body;
-    await db.sequelize.query(
-        `UPDATE turnoadmin SET disponible = '1' WHERE (idTurno = '${idTurno1.idTurno}')`
-        ).then(response => {
-            res.status(200).json({message: "El turno ha sido cancelado"})
-        })
-        .catch(err => {
-            res.status(500).json({
-                mensaje: 'Internal Server Error',
-                err: err
-                });
-        }); 
-}
-*/
+
+
+
 module.exports = controllers;
