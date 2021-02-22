@@ -28,5 +28,4 @@ server.listen(3001, () => {
 server.use(bodyParser.json());
 
 //Routes Handler 
-//sss
 server.use('/', routes);

@@ -6,7 +6,9 @@ const bodyparser = require('body-parser')
 const express = require('express');
 const { response } = require('express');
 const router = express.Router()
-const mongo = require('../db/mongo')
+const mongo = require('../db/mongo');
+const {privateKey, jwt} = require ('../jwt/jwt');
+
 
 controllers.getProductos = async (req, res) => {
 
@@ -97,10 +99,14 @@ controllers.addUser = async (req, res) => {
         email: datos.email
     }
     
+
     //console.log(mongo.mongoose.connection.readyState);
-    const saveToMongo = new mongo.usuarios(createMongoUser)
+    //const saveToMongo = new mongo.usuarios(createMongoUser)
+
+    const newUser = new mongo.usuarios(createMongoUser)
+
     
-    saveToMongo.save()
+    newUser.save()
     res.json("usuario creado") //mandar state y revisar primero
     
 }
@@ -113,7 +119,17 @@ controllers.login = async (req, res) => {
         ac = result[0].pass 
       //  console.log(ab, ac, datos.usuario, datos.pass)
         if ((ab === datos.usuario) && (ac === datos.pass)) {
-           res.json("ya te mando el JWT")
+
+            const payload = {
+                check:  true
+               };
+               const token = jwt.sign(payload, privateKey, {
+                expiresIn: 1440
+               });
+           res.json({
+            mensaje: 'Autenticación correcta',
+            token: token
+           })
         } else {
            res.json("BAD")
         }

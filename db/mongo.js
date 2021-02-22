@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-mongoose.connect('mongodb://localhost:27017/panicafe');
+mongoose.connect('mongodb://107.180.107.29:27017/panicafe');
 
 
 const usuarios = mongoose.model('users' , {
