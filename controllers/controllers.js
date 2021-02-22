@@ -12,7 +12,7 @@ const {privateKey, jwt} = require ('../jwt/jwt');
 
 controllers.getProductos = async (req, res) => {
 
-
+//viva peron!
 
 try {
     let resultSelect = await db.sequelize.query(
