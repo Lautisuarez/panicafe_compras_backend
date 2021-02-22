@@ -4,6 +4,7 @@ const db = require ('../db/db')
 const Sequelize = require('sequelize');
 const mongo = require('../db/mongo')
 const middlewares = {};
+const {jwt, privateKey} = require('../jwt/jwt')
  
 
 middlewares.checkIsAdmin = async (req, res, next) => {
@@ -24,6 +25,25 @@ middlewares.checkIsExist = async (req, res, next) => {
 }    
     ) 
 
+}
+
+middlewares.checkJWT = async(req, res, next) => {
+    const token = req.headers['access-token'];
+ 
+    if (token) {
+      jwt.verify(token, privateKey, (err, decoded) => {      
+        if (err) {
+          return res.json({ mensaje: 'Token inválida' });    
+        } else {
+          req.decoded = decoded;    
+          next();
+        }
+      });
+    } else {
+      res.send({ 
+          mensaje: 'Token no proveída.' 
+      });
+    }
 }
 
 //Middleware para ver si estan todos los campos obligatorios completos para reservar el turno
