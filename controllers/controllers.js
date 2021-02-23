@@ -134,7 +134,8 @@ controllers.login = async (req, res) => {
            res.json("Usuario o contraseña incorrecta")
         }
 
-    } .catch (
+    }
+    .catch(e) (
         res.json("No existe el usuario")
     )
     )
