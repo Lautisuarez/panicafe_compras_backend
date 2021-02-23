@@ -28,8 +28,9 @@ middlewares.checkIsExist = async (req, res, next) => {
 }
 
 middlewares.checkJWT = async(req, res, next) => {
-    const token = req.headers['access-token'];
- 
+
+    const token = req.headers.authorization.split(" ")[1];
+    
     if (token) {
       jwt.verify(token, privateKey, (err, decoded) => {      
         if (err) {

@@ -8,11 +8,10 @@ const { response } = require('express');
 const router = express.Router()
 const mongo = require('../db/mongo');
 const {privateKey, jwt} = require ('../jwt/jwt');
+const e = require('express');
 
 
 controllers.getProductos = async (req, res) => {
-
-
 
 try {
     let resultSelect = await db.sequelize.query(
@@ -47,6 +46,9 @@ controllers.postPedido = async (req, res) => {
     
     try {
         let pedido = req.body
+        if(!pedido.productos){
+            res.status(400).json("Pedido vacio")
+        }
         //Obtengo en el ultimo IdPedido
         let idPedidoFromSQL =  await db.sequelize.query(
             `SELECT top 1 idPedido FROM MRCCENTRAL.DBO.car_pedidos order by idPedido DESC ;`,
@@ -78,7 +80,7 @@ controllers.postPedido = async (req, res) => {
         
         } )
 
-        res.status(201).json("pedido creado")
+        res.status(201).json("Pedido creado")
 
     } catch(e) {
         res.status(500).json(`Error al ingresar el pedido ${e}`)
@@ -113,37 +115,35 @@ controllers.addUser = async (req, res) => {
 
 controllers.login = async (req, res) => {
     datos = req.body
+    console.log(datos)
     const query = mongo.usuarios.find({usuario:datos.usuario})
     .then(function(result){
         ab = result[0].usuario
         ac = result[0].pass 
-      //  console.log(ab, ac, datos.usuario, datos.pass)
+      
         if ((ab === datos.usuario) && (ac === datos.pass)) {
-
             const payload = {
                 check:  true
-               };
-               const token = jwt.sign(payload, privateKey, {
+                };
+                const token = jwt.sign(payload, privateKey, {
                 expiresIn: 1440
-               });
-           res.json({
-            mensaje: 'Autenticación correcta',
-            token: token
-           })
-        } else {
-           res.json("Usuario o contraseña incorrecta")
+                });
+            res.json({
+                
+                token: token
+            })
+        } 
+        else {
+           res.status(401).json("Contraseña incorrecta")
         }
 
     }
-    .catch(e) (
-        res.json("No existe el usuario")
-    )
-    )
+    ).catch(err => {
+        return res.status(404).json("No se ha encontrado ese usuario");
+      })
     
    
 }
-
-
 
 
 module.exports = controllers;
