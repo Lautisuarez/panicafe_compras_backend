@@ -37,6 +37,7 @@ try {
 
 
 }
+
 catch{
 res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
 }
