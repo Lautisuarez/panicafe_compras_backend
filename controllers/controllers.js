@@ -91,10 +91,33 @@ controllers.postPedido = async (req, res) => {
 
 //Gestion de usuarios
 
+controllers.getInfoAddUser = async (req, res) => {
+ 
+    let loginInfo =  await db.sequelize.query(
+        `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
+        {
+            type: db.sequelize.QueryTypes.SELECT
+        }
+        
+        )
+        .then (loginInfo => {
+            let infoToSend = loginInfo.map( item => { 
+                return { id: item.num_local , nombre : item.nom_local.trim()}; 
+                
+              });  
+              res.json(infoToSend)
+        })
+        .then (infoToSend => {
+            res.json(infoToSend)
+        })
+
+}
+
 controllers.addUser = async (req, res) => {
     datos = req.body
     
     let createMongoUser = {
+        id: datos.id,
         isAdmin: datos.isAdmin,
         usuario: datos.usuario,
         pass: datos.pass,
@@ -120,27 +143,30 @@ controllers.login = async (req, res) => {
     const query = mongo.usuarios.find({usuario:datos.usuario})
     .then(function(result){
         ab = result[0].usuario
-        ac = result[0].pass 
+        ac = result[0].pass
+        ad = result[0].nombre
+        ae = result[0].sAdmin
       
         if ((ab === datos.usuario) && (ac === datos.pass)) {
             const payload = {
                 check:  true
                 };
-                const token = jwt.sign(payload, privateKey, {
+                const token = jwt.sign(payload, privateKey,{
                 expiresIn: 1440
                 });
-            res.json({
                 
+            res.json({
+                nombre: ad,
                 token: token
             })
         } 
         else {
-           res.status(401).json("Contraseña incorrecta")
+           res.status(401).json("Datos Incorrectos")
         }
 
     }
     ).catch(err => {
-        return res.status(404).json("No se ha encontrado ese usuario");
+        return res.status(401).json("Datos Incorrectos");
       })
     
    

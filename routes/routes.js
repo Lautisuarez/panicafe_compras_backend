@@ -10,7 +10,8 @@ router.get('/productos',middlewares.checkJWT, controllers.getProductos); //revis
 router.post('/pedidos',middlewares.checkJWT, middlewares.checkPedidos, controllers.postPedido)
 
 //router.post('/login', middlewares.checkDatos.controllers.login)
-router.post('/adduser',middlewares.checkJWT, controllers.addUser)
+router.get('/getInfoAddUser', /*middlewares.checkJWT,*/ controllers.getInfoAddUser)
+router.post('/adduser',middlewares.checkJWT, middlewares.checkIsAdmin, controllers.addUser)
 router.post('/login', controllers.login)
 
 

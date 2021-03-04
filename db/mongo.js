@@ -3,6 +3,7 @@ mongoose.connect('mongodb://localhost:27017/panicafe');
 
 
 const usuarios = mongoose.model('users' , {
+    id: Number,
     isAdmin: Number,
     usuario: String,
     pass: String,

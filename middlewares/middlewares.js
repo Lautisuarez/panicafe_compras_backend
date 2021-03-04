@@ -8,14 +8,33 @@ const {jwt, privateKey} = require('../jwt/jwt')
  
 
 middlewares.checkIsAdmin = async (req, res, next) => {
-    console.log("revisar si es admin")
-    next()
-}
+    
+    datos = req.body
+        
+        const query = mongo.usuarios.find({usuario:datos.usuario})
+        .then(function(result){
+            ab = result[0].isAdmin
+            
+          
+            if (ab === 1) {
+                next()
+            } 
+            else {
+               res.status(401).json("No tiene permisos")
+            }
+        }
+        ).catch(err => {
+            return res.status(401).json("No tiene permisos");
+          })
+        
+       
+    }
+
 
 middlewares.checkIsExist = async (req, res, next) => {
     const usuarioBody = req.body.usuario
     let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
-        console.log(result, "hoooooolllllaaaaaa")
+        //console.log(result, "hoooooolllllaaaaaa")
         if (result[0].usuario == usuarioBody) {
             res.json(`ya existe el usuario ${usuarioBody}`)
         } else {
@@ -37,6 +56,7 @@ middlewares.checkJWT = async(req, res, next) => {
           return res.json({ mensaje: 'Token inválida' });    
         } else {
           req.decoded = decoded;    
+          console.log(decoded)
           next();
         }
       });
