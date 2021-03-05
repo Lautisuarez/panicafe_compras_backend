@@ -93,7 +93,7 @@ controllers.postPedido = async (req, res) => {
 
 controllers.getInfoAddUser = async (req, res) => {
  
-    let loginInfo =  await db.sequelize.query(
+    await db.sequelize.query(
         `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
         {
             type: db.sequelize.QueryTypes.SELECT
@@ -142,14 +142,15 @@ controllers.login = async (req, res) => {
     console.log(datos)
     const query = mongo.usuarios.find({usuario:datos.usuario})
     .then(function(result){
+        console.log(result[0])
         ab = result[0].usuario
         ac = result[0].pass
         ad = result[0].nombre
-        ae = result[0].sAdmin
+        ae = result[0].isAdmin
       
         if ((ab === datos.usuario) && (ac === datos.pass)) {
             const payload = {
-                check:  true
+                isAdmin: ae
                 };
                 const token = jwt.sign(payload, privateKey,{
                 expiresIn: 1440
