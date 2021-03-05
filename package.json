@@ -1,0 +1,38 @@
+{
+  "name": "panicafe",
+  "version": "1.0.0",
+  "description": "Carrito de compras para uso interno de Panicafe que actuara con su actual software de gestion.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@gitlab.com/sarnovich/panicafe.git"
+  },
+  "keywords": [
+    "carrito",
+    "nodejs",
+    "javascript",
+    "react"
+  ],
+  "author": "Do-IT.ar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://gitlab.com/sarnovich/panicafe/issues"
+  },
+  "homepage": "https://gitlab.com/sarnovich/panicafe#readme",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.19.0",
+    "connect-flash": "^0.1.1",
+    "cors": "^2.8.5",
+    "date-fns": "^2.16.1",
+    "express": "^4.17.1",
+    "jsonwebtoken": "^8.5.1",
+    "mongoose": "^5.11.17",
+    "nodemon": "^2.0.7",
+    "sequelize": "^6.5.0",
+    "tedious": "^11.0.1"
+  }
+}
