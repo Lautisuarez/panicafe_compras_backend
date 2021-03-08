@@ -1,0 +1,12 @@
+config:
+  target: 'http://107.180.107.29:3001/'
+  phases:
+    - duration: 10
+      arrivalRate: 10
+scenarios:
+  - flow:
+    - log: "Login"
+    - post:
+        url: "/login"
+        # json:
+        #   token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc0FkbWluIjoxLCJpYXQiOjE2MTQ5MTkzODUsImV4cCI6MTYxNDkyMDgyNX0.RURD-5pBBKpJJuMUpZDUyOpwypJ-YeB-j5D1_WKs2SE"
