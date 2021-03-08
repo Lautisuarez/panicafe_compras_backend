@@ -125,10 +125,6 @@ controllers.addUser = async (req, res) => {
         email: datos.email
     }
     
-
-    //console.log(mongo.mongoose.connection.readyState);
-    //const saveToMongo = new mongo.usuarios(createMongoUser)
-
     const newUser = new mongo.usuarios(createMongoUser)
 
     
