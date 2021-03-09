@@ -56,6 +56,22 @@ middlewares.checkIsExist = async (req, res, next) => {
 
 }
 
+middlewares.checkIsExistEdit = async (req, res, next) => {
+  const usuarioBody = req.body.usuario.toLowerCase()
+  let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
+      
+      if (result.length == 0) {
+        res.status(404).json("El usuario no existe")
+        
+      } else {
+        console.log("se va")
+        next()
+      }
+}    
+  ) 
+
+}
+
 middlewares.checkJWT = async(req, res, next) => {
 
     const token = req.headers.authorization?.split(" ")[1];

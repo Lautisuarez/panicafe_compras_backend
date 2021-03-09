@@ -169,5 +169,18 @@ controllers.login = async (req, res) => {
    
 }
 
+controllers.editUser = async (req, res) => {
+    try {
+    const datos = req.body
+    const usuariotoLower = datos.usuario.toLowerCase()
+    const password = datos.pass
+    let checkUser = await mongo.usuarios.findOne({usuario: usuariotoLower})
+       res.status(201).json("Usuario Modificado")
+   
+    } catch(e) {
+        console.log(e)
+        res.status(401).json("error")
+    }
+}
 
 module.exports = controllers;
