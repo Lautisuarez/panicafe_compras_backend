@@ -9,9 +9,10 @@ const middlewares = require('../middlewares/middlewares');
 router.get('/productos',middlewares.checkJWT, controllers.getProductos);
 router.post('/pedidos',middlewares.checkJWT, controllers.postPedido)
 
-router.post('/adduser',middlewares.checkJWT, middlewares.checkIsAdmin, controllers.addUser)
+router.post('/adduser',middlewares.checkJWT, middlewares.checkIfAdminJWT, controllers.addUser)
 router.get('/getInfoAddUser',middlewares.checkJWT,middlewares.checkIfAdminJWT,  controllers.getInfoAddUser)
 router.post('/login', controllers.login)
+router.get('/getUsers', middlewares.checkIfAdminJWT, controllers.getUsers)
 
 // ENDPOINTS QUE FALTAN ABM USUARIOS 
 // Por cada tarea un PR, es decir una branch para cada endpoint.
