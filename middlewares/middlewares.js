@@ -7,7 +7,7 @@ const middlewares = {};
 const {jwt, privateKey} = require('../jwt/jwt')
  
 
-middlewares.checkIsAdmin = async (req, res, next) => {
+/*middlewares.checkIsAdmin = async (req, res, next) => {
   datos = req.body
   console.log("DATOS", datos)
         
@@ -28,7 +28,7 @@ middlewares.checkIsAdmin = async (req, res, next) => {
             return res.status(401).json("No tiene permisos2");
           })
     }
-
+*/
 middlewares.checkIfAdminJWT = async( req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 

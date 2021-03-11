@@ -173,5 +173,14 @@ controllers.login = async (req, res) => {
    
 }
 
+controllers.getUsers = async (req, res) => {
+    let query = await mongo.usuarios.find();
+    let usersArray = []
+    for (let x = 0; x <= query.length -1; x ++) {
+    
+        usersArray.push(query[x].usuario)
+    }
+    res.status(200).json(usersArray) //happy path
+}
 
 module.exports = controllers;
