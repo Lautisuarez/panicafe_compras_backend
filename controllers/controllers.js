@@ -115,11 +115,12 @@ controllers.getInfoAddUser = async (req, res) => {
 
 controllers.addUser = async (req, res) => {
     datos = req.body
+    let userToLowerCase = datos.usuario.toLowerCase()
     
     let createMongoUser = {
         id: datos.id,
         isAdmin: datos.isAdmin,
-        usuario: datos.usuario,
+        usuario: userToLowerCase,
         pass: datos.pass,
         nombre: datos.nombre,
         email: datos.email
@@ -135,8 +136,11 @@ controllers.addUser = async (req, res) => {
 
 controllers.login = async (req, res) => {
     datos = req.body
-    console.log(datos)
-    const query = mongo.usuarios.find({usuario:datos.usuario})
+    //console.log(datos)
+    let usuarioLowerCase = datos.usuario.toLowerCase();
+    //console.log(usuarioLowerCase)
+    
+    const query = mongo.usuarios.find({usuario:usuarioLowerCase})
     .then(function(result){
         console.log(result[0])
         ab = result[0].usuario
@@ -144,7 +148,7 @@ controllers.login = async (req, res) => {
         ad = result[0].nombre
         ae = result[0].isAdmin
       
-        if ((ab === datos.usuario) && (ac === datos.pass)) {
+        if ((ab === usuarioLowerCase) && (ac === datos.pass)) {
             const payload = {
                 isAdmin: ae
                 };

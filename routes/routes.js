@@ -9,7 +9,7 @@ const middlewares = require('../middlewares/middlewares');
 router.get('/productos',middlewares.checkJWT, controllers.getProductos);
 router.post('/pedidos',middlewares.checkJWT, controllers.postPedido)
 
-router.post('/adduser',middlewares.checkJWT, middlewares.checkIsAdmin, controllers.addUser)
+router.post('/adduser',middlewares.checkJWT, middlewares.checkIfAdminJWT, middlewares.checkIsExist, controllers.addUser)
 router.get('/getInfoAddUser',middlewares.checkJWT,middlewares.checkIfAdminJWT,  controllers.getInfoAddUser)
 router.post('/login', controllers.login)
 router.put('/editUser', middlewares.checkIfAdminJWT, middlewares.checkIsExistEdit, controllers.editUser)
@@ -21,7 +21,7 @@ router.put('/editUser', middlewares.checkIfAdminJWT, middlewares.checkIsExistEdi
 // git add, git commit, git push
 // Merge request, su_branch -> master
 
-// - Validar que el usuario no exista cuando se crea uno nuevo (que sea unico)(que sea todo en minuscula, validar en mongodb)
+// - Validar que el usuario no exista cuando se crea uno nuevo (que sea unico)(que sea todo en minuscula, validar en mongodb) listo
 // - Obtener usuarios para devolver listado
 // - Cambiar contraseña --> Yo te mando el usuario (ya que es unico y el id no) 
 // - Eliminar usuario
