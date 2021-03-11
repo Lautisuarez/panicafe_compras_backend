@@ -20,11 +20,12 @@ middlewares.checkIsAdmin = async (req, res, next) => {
             }
 
             else {
-               res.status(401).json("No tiene permisos")
+               res.status(401).json("No tiene permisos1")
             }
         }
         ).catch(err => {
-            return res.status(401).json("No tiene permisos");
+          console.log(err)
+            return res.status(401).json("No tiene permisos2");
           })
     }
 
@@ -33,7 +34,7 @@ middlewares.checkIfAdminJWT = async( req, res, next) => {
 
   jwt.verify(token, privateKey, (err, decoded) => {      
     if (err) {
-      return res.json({ mensaje: 'No tiene permisos' });    
+      return res.json({ mensaje: 'No tiene permisos 3' });    
     } else {
       decoded.isAdmin == 1 ? next() : res.json({mensaje: "No tiene los permisos necesarios"})
       
@@ -42,15 +43,20 @@ middlewares.checkIfAdminJWT = async( req, res, next) => {
 
 }
 middlewares.checkIsExist = async (req, res, next) => {
-    const usuarioBody = req.body.usuario
+    const usuarioBody = req.body.usuario.toLowerCase()
     let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
-        //console.log(result, "hoooooolllllaaaaaa")
+       
+        if(result[0]) {
         if (result[0].usuario == usuarioBody) {
             res.json(`ya existe el usuario ${usuarioBody}`)
         } else {
             console.log("se va ok")
             next()
         }
+      }else {
+        console.log("se va ok")
+        next()
+    }
 }    
     ) 
 
