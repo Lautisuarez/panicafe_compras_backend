@@ -1,10 +1,13 @@
-//Express
 const express = require('express');
-const server = express ();
-const cors = require('cors')
 
-server.use(cors())
-// server.options('*', cors())
+const cors = require('cors')
+//Express
+const server = express ();
+var corsOptions = {
+    origin: 'http://localhost:5000',
+    optionsSuccessStatus: 200 // For legacy browser support
+}
+server.use(cors(corsOptions))
 
 //Body Parser
 const bodyParser = require('body-parser');
