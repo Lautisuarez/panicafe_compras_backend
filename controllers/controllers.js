@@ -173,14 +173,18 @@ controllers.login = async (req, res) => {
    
 }
 
-controllers.getUsers = async (req, res) => {
-    let query = await mongo.usuarios.find();
-    let usersArray = []
-    for (let x = 0; x <= query.length -1; x ++) {
-    
-        usersArray.push(query[x].usuario)
+controllers.editUser = async (req, res) => {
+    try {
+    const datos = req.body
+    const usuariotoLower = datos.usuario.toLowerCase()
+    const password = datos.pass
+    let checkUser = await mongo.usuarios.findOne({usuario: usuariotoLower})
+       res.status(201).json("Usuario Modificado")
+   
+    } catch(e) {
+        console.log(e)
+        res.status(401).json("error")
     }
-    res.status(200).json(usersArray) //happy path
 }
 
 module.exports = controllers;

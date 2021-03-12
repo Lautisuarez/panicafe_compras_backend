@@ -12,7 +12,8 @@ router.post('/pedidos',middlewares.checkJWT, controllers.postPedido)
 router.post('/adduser',middlewares.checkJWT, middlewares.checkIfAdminJWT, middlewares.checkIsExist, controllers.addUser)
 router.get('/getInfoAddUser',middlewares.checkJWT,middlewares.checkIfAdminJWT,  controllers.getInfoAddUser)
 router.post('/login', controllers.login)
-router.get('/getUsers', middlewares.checkIfAdminJWT, controllers.getUsers)
+router.put('/editUser', middlewares.checkIfAdminJWT, middlewares.checkIsExistEdit, controllers.editUser)
+
 
 // ENDPOINTS QUE FALTAN ABM USUARIOS 
 // Por cada tarea un PR, es decir una branch para cada endpoint.
@@ -22,7 +23,7 @@ router.get('/getUsers', middlewares.checkIfAdminJWT, controllers.getUsers)
 
 // - Validar que el usuario no exista cuando se crea uno nuevo (que sea unico)(que sea todo en minuscula, validar en mongodb) listo
 // - Obtener usuarios para devolver listado
-// - Cambiar contraseña --> Yo te mando el id de usuario 
+// - Cambiar contraseña --> Yo te mando el usuario (ya que es unico y el id no) 
 // - Eliminar usuario
 
 module.exports = router;
