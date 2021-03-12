@@ -34,7 +34,7 @@ middlewares.checkIfAdminJWT = async( req, res, next) => {
 
   jwt.verify(token, privateKey, (err, decoded) => {      
     if (err) {
-      return res.json({ mensaje: 'No tiene permisos 3' });    
+      return res.json({ mensaje: 'No tiene permisos' });    
     } else {
       decoded.isAdmin == 1 ? next() : res.json({mensaje: "No tiene los permisos necesarios"})
       
