@@ -115,6 +115,7 @@ controllers.getInfoAddUser = async (req, res) => {
 
 controllers.addUser = async (req, res) => {
     datos = req.body
+    console.log(datos)
     let userToLowerCase = datos.usuario.toLowerCase()
     
     let createMongoUser = {
@@ -130,7 +131,7 @@ controllers.addUser = async (req, res) => {
 
     
     newUser.save()
-    res.json("usuario creado") //mandar state y revisar primero
+    res.status(201).json("usuario creado") //mandar state y revisar primero
     
 }
 
@@ -172,6 +173,15 @@ controllers.login = async (req, res) => {
     
    
 }
+controllers.getUsers = async (req, res) => {
+    let query = await mongo.usuarios.find();
+    let usersArray = []
+    for (let x = 0; x <= query.length -1; x ++) {
+    
+        usersArray.push(query[x].usuario)
+    }
+    res.status(200).json(usersArray) //happy path
+}
 
 controllers.editUser = async (req, res) => {
     try {
@@ -185,6 +195,12 @@ controllers.editUser = async (req, res) => {
         console.log(e)
         res.status(401).json("error")
     }
+}
+controllers.deleteUser = async (req, res) => {
+    const target = req.body.usuario.toLowerCase()
+    console.log(target)
+    await mongo.usuarios.deleteOne({usuario: target}) //sin el await no lo eliminaba
+    res.status(200).json("Usuario eliminado")
 }
 
 module.exports = controllers;

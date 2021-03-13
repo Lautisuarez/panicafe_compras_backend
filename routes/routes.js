@@ -13,7 +13,8 @@ router.post('/adduser',middlewares.checkJWT, middlewares.checkIfAdminJWT, middle
 router.get('/getInfoAddUser',middlewares.checkJWT,middlewares.checkIfAdminJWT,  controllers.getInfoAddUser)
 router.post('/login', controllers.login)
 router.put('/editUser', middlewares.checkIfAdminJWT, middlewares.checkIsExistEdit, controllers.editUser)
-
+router.get('/getUsers', middlewares.checkIfAdminJWT, controllers.getUsers)
+router.delete('/deleteUser', middlewares.checkIfAdminJWT,middlewares.checkIsExistEdit,controllers.deleteUser)
 
 // ENDPOINTS QUE FALTAN ABM USUARIOS 
 // Por cada tarea un PR, es decir una branch para cada endpoint.
