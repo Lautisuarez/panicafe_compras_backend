@@ -72,7 +72,7 @@ controllers.postPedido = async (req, res) => {
                
                 let insertProductos =  db.sequelize.query(
                     `insert into MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad) 
-                VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${pedido2.productos[i].idProducto}, '${pedido2.productos[i].descripcion}', ${pedido2.productos[i].preciounit},
+                VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${pedido2.productos[i].id}, '${pedido2.productos[i].descripcion}', ${pedido2.productos[i].precio},
                 ${pedido2.productos[i].cantidad});`
                 )
             }
@@ -122,7 +122,7 @@ controllers.addUser = async (req, res) => {
         id: datos.id,
         isAdmin: datos.isAdmin,
         usuario: userToLowerCase,
-        pass: datos.pass,
+        pass: datos.password,
         nombre: datos.nombre,
         email: datos.email
     }
@@ -137,7 +137,7 @@ controllers.addUser = async (req, res) => {
 
 controllers.login = async (req, res) => {
     datos = req.body
-    //console.log(datos)
+    console.log(datos)
     let usuarioLowerCase = datos.usuario.toLowerCase();
     //console.log(usuarioLowerCase)
     
@@ -148,10 +148,11 @@ controllers.login = async (req, res) => {
         ac = result[0].pass
         ad = result[0].nombre
         ae = result[0].isAdmin
-      
+        id = result[0].id
         if ((ab === usuarioLowerCase) && (ac === datos.pass)) {
             const payload = {
-                isAdmin: ae
+                isAdmin: ae,
+                id
                 };
                 const token = jwt.sign(payload, privateKey,{
                 expiresIn: 1440
