@@ -9,7 +9,7 @@ const routes = require('./routes/routes');
 //Express
 const server = express ();
 var corsOptions = {
-    origin: 'http://localhost:3002',
+    origin: 'http://107.180.107.29:5000',
     optionsSuccessStatus: 200 // For legacy browser support
 }
 server.use(cors(corsOptions))
