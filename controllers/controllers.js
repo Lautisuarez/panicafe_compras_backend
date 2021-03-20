@@ -92,25 +92,50 @@ controllers.postPedido = async (req, res) => {
 //Gestion de usuarios
 
 controllers.getInfoAddUser = async (req, res) => {
- 
-    await db.sequelize.query(
+ /*
+    let info = db.sequelize.query(
         `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
         {
             type: db.sequelize.QueryTypes.SELECT
         }
         
         )
-        .then (loginInfo => {
-            let infoToSend = loginInfo.map( item => { 
+        .then (info => {
+            let infoToSend = info.map( item => { 
                 return { id: item.num_local , nombre : item.nom_local.trim()}; 
                 
               });  
-              res.json(infoToSend)
+             // res.json(infoToSend)
+        //})
+        //.then (infoToSend => {
+        //    res.json(infoToSend)
         })
-        .then (infoToSend => {
-            res.json(infoToSend)
+*/
+try {
+    let getInfo = await db.sequelize.query(
+        `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
+        {
+            type: db.sequelize.QueryTypes.SELECT
         })
+        
+        .then(resultSelect => {
+              
+              let resultToSend = resultSelect.map( item => { 
+                return { id: item.num_local , nombre : item.nom_local.trim()}; 
+                
+              });  
+              
+              res.json(resultToSend)
+              
+        })
+        
 
+
+}
+
+catch{
+res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo .")
+}
 }
 
 controllers.addUser = async (req, res) => {
