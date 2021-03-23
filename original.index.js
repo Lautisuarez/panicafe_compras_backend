@@ -1,18 +1,19 @@
 const express = require('express');
 
 const cors = require('cors')
-
-const bodyParser = require('body-parser');
-
-const routes = require('./routes/routes');
-
 //Express
 const server = express ();
 var corsOptions = {
-    origin: '*',
+    origin: 'http://localhost:5000',
     optionsSuccessStatus: 200 // For legacy browser support
 }
 server.use(cors(corsOptions))
+
+//Body Parser
+const bodyParser = require('body-parser');
+
+//Conexion con archivos de rutas
+const routes = require('./routes/routes');
 
 //Inicializar servidor
 server.listen(3001, () => {
