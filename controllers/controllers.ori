@@ -13,66 +13,41 @@ const e = require('express');
 
 controllers.getProductos = async (req, res) => {
 
-    try {
-        let resultSelect = await db.sequelize.query(
-            `SELECT a.CODIGO, a.DESCRIP, a.PRECIO, r.r_descrip
-            FROM MRCCENTRAL.DBO.ARTICULO a
-            JOIN MRCCENTRAL.DBO.RUBRO r ON a.rubro=r.r_codigo
-            WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1 
-            ORDER BY DESCRIP`,
-            {
-                type: db.sequelize.QueryTypes.SELECT
-            })
-            
-            .then(resultSelect => {
+try {
+    let resultSelect = await db.sequelize.query(
+        `SELECT CODIGO, DESCRIP, PRECIO FROM MRCCENTRAL.DBO.ARTICULO WHERE SEVENDE=1 AND INVISIBL=0 AND WEB=1 ORDER BY DESCRIP`,
+        {
+            type: db.sequelize.QueryTypes.SELECT
+        })
+        
+        .then(resultSelect => {
+              
+              let resultToSend = resultSelect.map( item => { 
+                return { id: item.CODIGO , descripcion : item.DESCRIP, precio: item.PRECIO }; 
                 
-                let resultToSend = resultSelect.map( item => {
-                    return { id: item.CODIGO , descripcion : item.DESCRIP, precio: item.PRECIO, rubro: item.r_descrip }; 
-                    
-                });  
-                for(var n =0; n < resultToSend.length; n++){
-                    resultToSend[n].id = parseInt(resultToSend[n].id);
-                    resultToSend[n].descripcion= resultToSend[n].descripcion.trim()
-                }
-                res.json(resultToSend)
-                
-            })
-            
+              });  
+              for(var n =0; n < resultToSend.length; n++){
+                resultToSend[n].id = parseInt(resultToSend[n].id);
+                resultToSend[n].descripcion= resultToSend[n].descripcion.trim()
+              }
+              res.json(resultToSend)
+              
+        })
+        
 
 
-    } catch (e) {
-        res.status(500).json('Error al obtener los productos. Detalle: ' + e)
-    }
 }
 
-controllers.getRubros = async (req, res) => {
-
-    try {
-        let resultSelect = await db.sequelize.query(
-            `SELECT r_descrip
-            FROM MRCCENTRAL.DBO.RUBRO`,
-            {
-                type: db.sequelize.QueryTypes.SELECT
-            })
-            
-            .then(resultSelect => {
-                let resultToSend = resultSelect.map( item => {
-                    return { rubro: item.r_descrip.trim() }; 
-                });
-                res.json(resultToSend);
-            })
-            
-
-
-    } catch (e) {
-        res.status(500).json('Error al obtener los rubros. Detalle: ' + e)
-    }
+catch{
+res.status(500).json("La base de datos de Mr. Comanda no esta respondiendo.")
+}
 }
 
 controllers.postPedido = async (req, res) => {
     
     try {
         let pedido = req.body
+	console.log("PEDIDO", pedido)
         if(!pedido.productos){
             res.status(400).json("Pedido vacio")
         }
@@ -93,9 +68,9 @@ controllers.postPedido = async (req, res) => {
             // Cargo la tabla productos con los pedidos
             .then (response => {
                 pedido2 = req.body
-               
 
             for (let i = 0; i <= pedido2.productos.length -1; i++) {
+               
                 let insertProductos =  db.sequelize.query(
                     `insert into MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad) 
                 VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${pedido2.productos[i].id}, '${pedido2.productos[i].descripcion}', ${pedido2.productos[i].precio},
@@ -118,6 +93,25 @@ controllers.postPedido = async (req, res) => {
 //Gestion de usuarios
 
 controllers.getInfoAddUser = async (req, res) => {
+ /*
+    let info = db.sequelize.query(
+        `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
+        {
+            type: db.sequelize.QueryTypes.SELECT
+        }
+        
+        )
+        .then (info => {
+            let infoToSend = info.map( item => { 
+                return { id: item.num_local , nombre : item.nom_local.trim()}; 
+                
+              });  
+             // res.json(infoToSend)
+        //})
+        //.then (infoToSend => {
+        //    res.json(infoToSend)
+        })
+*/
 try {
     let getInfo = await db.sequelize.query(
         `SELECT num_local, nom_local FROM MRCCENTRAL.DBO.locales order by num_local;`,
@@ -169,9 +163,10 @@ controllers.addUser = async (req, res) => {
 
 controllers.login = async (req, res) => {
     datos = req.body
+    console.log(datos)
     let usuarioLowerCase = datos.usuario.toLowerCase();
-
-    if(mongo.usuarios === undefined) return res.status(401).json("Datos Incorrectos");
+    //console.log(usuarioLowerCase)
+    
     const query = mongo.usuarios.find({usuario:usuarioLowerCase})
     .then(function(result){
         console.log(result[0])
@@ -234,54 +229,5 @@ controllers.deleteUser = async (req, res) => {
     await mongo.usuarios.deleteOne({usuario: target}) //sin el await no lo eliminaba
     res.status(200).json("Usuario eliminado")
 }
-
-controllers.misPedidos = async (req, res) => {
-    
-    const token = req.headers.authorization?.split(" ")[1];
-    let listaDePedidos = []
-     let idCliente = jwt.verify(token, privateKey, (err, decoded) => { 
-        req.decoded = decoded;   
-        return decoded.id 
-    })
-    
-
-    try {
-        listaDePedidos = await db.sequelize.query(
-            `select top 10 idPedido, fecha , precioTotal from MRCCENTRAL.DBO.car_pedidos where idCliente = ${idCliente} order by idPedido DESC;`,
-            {
-                type: db.sequelize.QueryTypes.SELECT
-            })
-            
-            .then(resultSelect => {
-              
-               for(let p = 0; p <= resultSelect.length -1; p++){
-                let options = { year: 'numeric', month: 'long', day: 'numeric' };
-                resultSelect[p].fecha = resultSelect[p].fecha.toLocaleDateString("es-ES", options)
-               } 
-               res.json(resultSelect)
-                });  
-                
-                
-                
-    } catch(err) {
-
-        console.log("error", err)
-    }
-}
-
-controllers.misPedidosDetalle = async (req, res) => {
-    let id = req.body.idPedido
-  
-    let productos = await db.sequelize.query(
-        `SELECT cantidad, descripcion, preciounit FROM MRCCENTRAL.DBO.car_productos WHERE idPedido = ${id};`,
-        {
-            type: db.sequelize.QueryTypes.SELECT
-        })
-        .then(productos => {
-            res.json(productos)
-        })
-
-}
-
 
 module.exports = controllers;
