@@ -1,9 +1,11 @@
-const db_host = "780e077ce364.sn.mynetname.net";
-const db_name = "master";
-const db_user = "sa";
-const db_password = "Panicafe2018";
-const db_port = "14338";
-const db_instance = "MSSQLSERVER01" //revisar dato
+require('dotenv').config();
+
+const db_host = process.env.DB_HOST;
+const db_name = process.env.DB_NAME;
+const db_user = process.env.DB_USER;
+const db_password = process.env.DB_PASSWORD;
+const db_port = process.env.DB_PORT;
+const db_instance = process.env.DB_INSTANCE; 
 
 module.exports = {
     db_host,
