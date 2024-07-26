@@ -184,10 +184,10 @@ controllers.login = async (req, res) => {
             const payload = {
                 isAdmin: ae,
                 id
-                };
-                const token = jwt.sign(payload, privateKey,{
-                expiresIn: 1440
-                });
+            };
+            const token = jwt.sign(payload, privateKey,{
+                expiresIn: 1440 // 24 minutes
+            });
                 
             res.json({
                 nombre: ad,
@@ -236,38 +236,38 @@ controllers.deleteUser = async (req, res) => {
 }
 
 controllers.misPedidos = async (req, res) => {
-    
     const token = req.headers.authorization?.split(" ")[1];
-    let listaDePedidos = []
-     let idCliente = jwt.verify(token, privateKey, (err, decoded) => { 
+    let listaDePedidos = [];
+    let idCliente = jwt.verify(token, privateKey, (err, decoded) => { 
         req.decoded = decoded;   
         return decoded.id 
-    })
+    });
     
-
     try {
         listaDePedidos = await db.sequelize.query(
-            `select top 10 idPedido, fecha , precioTotal from MRCCENTRAL.DBO.car_pedidos where idCliente = ${idCliente} order by idPedido DESC;`,
+            `SELECT TOP 10 idPedido, fecha, precioTotal 
+             FROM MRCCENTRAL.DBO.car_pedidos 
+             WHERE idCliente = ${idCliente} 
+             ORDER BY idPedido DESC;`,
             {
                 type: db.sequelize.QueryTypes.SELECT
-            })
-            
-            .then(resultSelect => {
-              
-               for(let p = 0; p <= resultSelect.length -1; p++){
-                let options = { year: 'numeric', month: 'long', day: 'numeric' };
-                resultSelect[p].fecha = resultSelect[p].fecha.toLocaleDateString("es-ES", options)
-               } 
-               res.json(resultSelect)
-                });  
-                
-                
-                
-    } catch(err) {
+            }
+        );
+        
+        listaDePedidos = listaDePedidos.map(pedido => {
+            let options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+            pedido.fecha = new Date(pedido.fecha).toLocaleString("es-ES", options);
+            return pedido;
+        });
 
-        console.log("error", err)
+        res.json(listaDePedidos);
+        
+    } catch(err) {
+        console.log("error", err);
+        res.status(500).json({ error: "Error al obtener los pedidos" });
     }
-}
+};
+
 
 controllers.misPedidosDetalle = async (req, res) => {
     let id = req.body.idPedido
