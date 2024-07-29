@@ -50,7 +50,8 @@ controllers.getRubros = async (req, res) => {
     try {
         let resultSelect = await db.sequelize.query(
             `SELECT r_descrip
-            FROM MRCCENTRAL.DBO.RUBRO`,
+            FROM MRCCENTRAL.DBO.RUBRO
+            WHERE web=1`,
             {
                 type: db.sequelize.QueryTypes.SELECT
             })
