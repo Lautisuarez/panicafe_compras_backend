@@ -1,103 +1,100 @@
-
-const express = require('express');
-const db = require ('../db/db')
-const Sequelize = require('sequelize');
-const mongo = require('../db/mongo')
+const mongo = require("../db/mongo");
 const middlewares = {};
-const {jwt, privateKey} = require('../jwt/jwt')
- 
+const { jwt, privateKey } = require("../jwt/jwt");
 
-/*middlewares.checkIsAdmin = async (req, res, next) => {
-  datos = req.body
-  console.log("DATOS", datos)
-        
-        const query = mongo.usuarios.findOne({usuario:datos.usuario})
-        .then(function(result){
-            ab = result.isAdmin
-            
-            if (ab === 1) {
-                next()
-            }
-
-            else {
-               res.status(401).json("No tiene permisos1")
-            }
-        }
-        ).catch(err => {
-          console.log(err)
-            return res.status(401).json("No tiene permisos2");
-          })
-    }
-*/
-middlewares.checkIfAdminJWT = async( req, res, next) => {
+middlewares.checkIfAdminJWT = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
-  jwt.verify(token, privateKey, (err, decoded) => {      
+  jwt.verify(token, privateKey, (err, decoded) => {
     if (err) {
-      return res.json({ mensaje: 'No tiene permisos' });    
+      return res.json({ mensaje: "No tiene permisos" });
     } else {
-      decoded.isAdmin === 1 ? next() : res.json({mensaje: "No tiene los permisos necesarios"})
-      
+      decoded.isAdmin === 1
+        ? next()
+        : res.json({ mensaje: "No tiene los permisos necesarios" });
     }
   });
+};
 
-}
-middlewares.checkIsExist = async (req, res, next) => {
-    const usuarioBody = req.body.usuario.toLowerCase()
-    let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
-       
-        if(result[0]) {
-        if (result[0].usuario == usuarioBody) {
-            res.json(`ya existe el usuario ${usuarioBody}`)
-        } else {
-            console.log("se va ok")
-            next()
-        }
-      }else {
-        console.log("se va ok")
-        next()
+middlewares.checkIfProductionOrAdminJWT = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  jwt.verify(token, privateKey, (err, decoded) => {
+    if (err) {
+      return res.json({ mensaje: "No tiene permisos" });
+    } else {
+      decoded.isAdmin === 2 || decoded.isAdmin === 1
+        ? next()
+        : res.json({ mensaje: "No tiene los permisos necesarios" });
     }
-}    
-    ) 
+  });
+};
 
-}
+middlewares.checkIfProductionJWT = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
 
-middlewares.checkIsExistEdit = async (req, res, next) => {
-  const usuarioBody = req.body.usuario.toLowerCase()
-  let checkuser = await mongo.usuarios.find({usuario: usuarioBody}).then(function(result){
-      
-      if (result.length == 0) {
-        res.status(404).json("El usuario no existe")
-        
-      } else {
-        console.log("se va")
-        next()
-      }
-}    
-  ) 
+  jwt.verify(token, privateKey, (err, decoded) => {
+    if (err) {
+      return res.json({ mensaje: "No tiene permisos" });
+    } else {
+      decoded.isAdmin === 2
+        ? next()
+        : res.json({ mensaje: "No tiene los permisos necesarios" });
+    }
+  });
+};
 
-}
-
-middlewares.checkJWT = async(req, res, next) => {
-
-    const token = req.headers.authorization?.split(" ")[1];
-    
-    if (token) {
-      jwt.verify(token, privateKey, (err, decoded) => {      
-        if (err) {
-          return res.json({ mensaje: 'Token inválida' });    
+middlewares.checkIsExist = async (req, res, next) => {
+  const usuarioBody = req.body.usuario.toLowerCase();
+  let checkuser = await mongo.usuarios
+    .find({ usuario: usuarioBody })
+    .then(function (result) {
+      if (result[0]) {
+        if (result[0].usuario == usuarioBody) {
+          res.json(`ya existe el usuario ${usuarioBody}`);
         } else {
-          req.decoded = decoded;    
-          console.log(decoded)
+          console.log("se va ok");
           next();
         }
-      });
-    } else {
-      res.send({ 
-          mensaje: 'Token no proveída.' 
-      });
-    }
-}
+      } else {
+        console.log("se va ok");
+        next();
+      }
+    });
+};
 
-module.exports = middlewares
+middlewares.checkIsExistEdit = async (req, res, next) => {
+  const usuarioBody = req.body.usuario.toLowerCase();
+  let checkuser = await mongo.usuarios
+    .find({ usuario: usuarioBody })
+    .then(function (result) {
+      if (result.length == 0) {
+        res.status(404).json("El usuario no existe");
+      } else {
+        console.log("se va");
+        next();
+      }
+    });
+};
 
+middlewares.checkJWT = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (token) {
+    jwt.verify(token, privateKey, (err, decoded) => {
+      if (err) {
+        return res.json({ mensaje: "Token inválida" });
+      } else {
+        req.decoded = decoded;
+        console.log(decoded);
+        next();
+      }
+    });
+  } else {
+    res.send({
+      mensaje: "Token no proveída.",
+    });
+  }
+};
+
+module.exports = middlewares;
