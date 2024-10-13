@@ -310,7 +310,8 @@ controllers.pedidosDetalle = async (req, res) => {
          FROM MRCCENTRAL.DBO.car_productos prod
          JOIN MRCCENTRAL.DBO.ARTICULO art ON art.codigo=prod.idProducto
          JOIN MRCCENTRAL.DBO.RUBRO rub ON art.rubro=rub.r_codigo
-         WHERE idPedido IN (:idPedidos) AND art.SEVENDE=1 AND art.INVISIBL=0 AND art.WEB=1 `,
+         WHERE idPedido IN (:idPedidos) AND art.SEVENDE=1 AND art.INVISIBL=0 AND art.WEB=1
+         ORDER BY rub.r_descrip ASC `,
         {
           replacements: { idPedidos },
           type: db.sequelize.QueryTypes.SELECT,
