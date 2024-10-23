@@ -61,46 +61,46 @@ controllers.getRubros = async (req, res) => {
 };
 
 controllers.postPedido = async (req, res) => {
+  const t = await db.sequelize.transaction();
   try {
     let pedido = req.body;
+
     if (!pedido.productos) {
-      res.status(400).json("Pedido vacio");
+      return res.status(400).json("Pedido vacío");
     }
-    //Obtengo en el ultimo IdPedido
-    let idPedidoFromSQL = await db.sequelize
-      .query(
-        `SELECT top 1 idPedido FROM MRCCENTRAL.DBO.car_pedidos order by idPedido DESC ;`,
-        {
-          type: db.sequelize.QueryTypes.SELECT,
-        }
-      )
-      //Cargo la tabla pedidos
-      .then((idPedidoFromSQL) => {
-        let insertPedido = db.sequelize
-          .query(
-            `insert into MRCCENTRAL.DBO.car_pedidos (idCliente , fecha, PrecioTotal ) values (${pedido.idCliente}, '${pedido.fecha}', ${pedido.precioTotal});`
-          )
-          // Cargo la tabla productos con los pedidos
-          .then((response) => {
-            pedido2 = req.body;
 
-            for (let i = 0; i <= pedido2.productos.length - 1; i++) {
-              let insertProductos = db.sequelize.query(
-                `insert into MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad) 
-                VALUES ( ${idPedidoFromSQL[0].idPedido + 1}, ${
-                  pedido2.productos[i].id
-                }, '${pedido2.productos[i].descripcion}', ${
-                  pedido2.productos[i].precio
-                },
-                ${pedido2.productos[i].cantidad});`
-              );
-            }
-          });
-      });
+    // Obtengo el último idPedido
+    const idPedidoFromSQL = await db.sequelize.query(
+      `SELECT top 1 idPedido FROM MRCCENTRAL.DBO.car_pedidos order by idPedido DESC ;`,
+      {
+        type: db.sequelize.QueryTypes.SELECT,
+        transaction: t,
+      }
+    );
 
+    // Cargo la tabla pedidos
+    const insertPedido = await db.sequelize.query(
+      `INSERT INTO MRCCENTRAL.DBO.car_pedidos (idCliente , fecha, PrecioTotal) 
+      VALUES (${pedido.idCliente}, '${pedido.fecha}', ${pedido.precioTotal});`,
+      { transaction: t }
+    );
+
+    // Cargo la tabla productos con los pedidos
+    for (let i = 0; i < pedido.productos.length; i++) {
+      await db.sequelize.query(
+        `INSERT INTO MRCCENTRAL.DBO.car_productos (idPedido, idProducto, descripcion, preciounit, cantidad)
+        VALUES (${idPedidoFromSQL[0].idPedido + 1}, ${pedido.productos[i].id}, 
+        '${pedido.productos[i].descripcion}', ${pedido.productos[i].precio}, 
+        ${pedido.productos[i].cantidad});`,
+        { transaction: t }
+      );
+    }
+
+    await t.commit();
     res.status(201).json("Pedido creado");
   } catch (e) {
-    res.status(500).json(`Error al ingresar el pedido ${e}`);
+    await t.rollback();
+    res.status(500).json(`Error al ingresar el pedido: ${e}`);
   }
 };
 
