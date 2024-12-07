@@ -29,7 +29,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 2244
         script: |
-          cd /home/ivan/web/panicafe
+          cd /home/administrador/web/panicafe
           git pull origin master
           npm install
           pm2 restart all
