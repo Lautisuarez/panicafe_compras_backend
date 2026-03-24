@@ -31,7 +31,7 @@ router.get('/productos', middlewares.checkJWT, controllers.getProductos);
  * /productos/admin:
  *   get:
  *     summary: Listar articulos elegibles para web (admin), con flag permitePedidoCompras
- *     description: Mismos filtros que GET /productos para SEVENDE, INVISIBL y WEB; no filtra por PERMITE_PEDIDO_COMPRAS. Solo rol admin.
+ *     description: Mismos filtros que GET /productos para SEVENDE, INVISIBL y WEB; no filtra por PERMITE_PEDIDO_COMPRAS. Requiere isAdmin 1 o 3.
  *     tags: [Productos]
  *     security:
  *       - bearerAuth: []
@@ -44,7 +44,7 @@ router.get('/productos', middlewares.checkJWT, controllers.getProductos);
 router.get(
   '/productos/admin',
   middlewares.checkJWT,
-  middlewares.checkIfAdminJWT,
+  middlewares.checkIfAdmin1Or3JWT,
   controllers.getProductosAdmin
 );
 
@@ -103,7 +103,7 @@ router.get('/rubros', middlewares.checkJWT, controllers.getRubros);
 router.patch(
   '/articulos/pedido-habilitado',
   middlewares.checkJWT,
-  middlewares.checkIfAdminJWT,
+  middlewares.checkIfAdmin1Or3JWT,
   controllers.patchArticuloPedidoHabilitado
 );
 
@@ -181,7 +181,7 @@ router.post('/login', controllers.login);
  *                 example: 1
  *               isAdmin:
  *                 type: int
- *                 description: 0 (Usuario), 1 (Admin), 2 (Production)
+ *                 description: 0 (Usuario), 1 (Admin), 2 (Production), 3 (Catálogo compras / habilitación pedidos)
  *                 example: 0
  *               usuario:
  *                 type: string
