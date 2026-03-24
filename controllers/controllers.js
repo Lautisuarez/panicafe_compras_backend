@@ -2,6 +2,14 @@ const db = require("../db/db");
 const controllers = {};
 const mongo = require("../db/mongo");
 const { privateKey, jwt } = require("../jwt/jwt");
+const PEDIDO_ENABLE_COLUMN = "PERMITE_PEDIDO_COMPRAS";
+
+function bitToBoolean(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  if (Buffer.isBuffer(value)) return value[0] === 1;
+  return Boolean(value);
+}
 
 controllers.getProductos = async (req, res) => {
   try {
@@ -10,7 +18,7 @@ controllers.getProductos = async (req, res) => {
         `SELECT a.CODIGO, a.DESCRIP, a.PRECIO, r.r_descrip
             FROM MRCCENTRAL.DBO.ARTICULO a
             JOIN MRCCENTRAL.DBO.RUBRO r ON a.rubro=r.r_codigo
-            WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1 
+            WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1 AND a.${PEDIDO_ENABLE_COLUMN}=1 
             ORDER BY DESCRIP`,
         {
           type: db.sequelize.QueryTypes.SELECT,
@@ -34,6 +42,42 @@ controllers.getProductos = async (req, res) => {
       });
   } catch (e) {
     res.status(500).json("Error al obtener los productos. Detalle: " + e);
+  }
+};
+
+controllers.getProductosAdmin = async (req, res) => {
+  try {
+    const rows = await db.sequelize.query(
+      `SELECT a.CODIGO, a.DESCRIP, a.PRECIO, r.r_descrip,
+        CAST(a.${PEDIDO_ENABLE_COLUMN} AS INT) AS permitePedidoCompras
+      FROM MRCCENTRAL.DBO.ARTICULO a
+      JOIN MRCCENTRAL.DBO.RUBRO r ON a.rubro = r.r_codigo
+      WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1
+      ORDER BY a.DESCRIP`,
+      {
+        type: db.sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    const resultToSend = rows.map((item) => {
+      const rawFlag =
+        item.permitePedidoCompras ??
+        item.PERMITE_PEDIDO_COMPRAS ??
+        item.PERMITEPEDIDOCOMPRAS;
+      return {
+        id: parseInt(item.CODIGO, 10),
+        descripcion: (item.DESCRIP || "").toString().trim(),
+        precio: item.PRECIO,
+        rubro: (item.r_descrip || "").toString().trim(),
+        permitePedidoCompras: bitToBoolean(rawFlag),
+      };
+    });
+
+    res.json(resultToSend);
+  } catch (e) {
+    res
+      .status(500)
+      .json("Error al obtener los productos (admin). Detalle: " + e);
   }
 };
 
@@ -66,7 +110,43 @@ controllers.postPedido = async (req, res) => {
     let pedido = req.body;
 
     if (!pedido.productos) {
+      await t.rollback();
       return res.status(400).json("Pedido vacío");
+    }
+
+    const productIds = [
+      ...new Set(
+        pedido.productos
+          .map((producto) => parseInt(producto.id, 10))
+          .filter((productoId) => !Number.isNaN(productoId))
+      ),
+    ];
+
+    if (productIds.length === 0) {
+      await t.rollback();
+      return res.status(400).json("No se encontraron productos válidos");
+    }
+
+    const enabledProducts = await db.sequelize.query(
+      `SELECT CODIGO
+      FROM MRCCENTRAL.DBO.ARTICULO
+      WHERE CODIGO IN (:productIds)
+      AND SEVENDE=1
+      AND INVISIBL=0
+      AND WEB=1
+      AND ${PEDIDO_ENABLE_COLUMN}=1`,
+      {
+        replacements: { productIds },
+        type: db.sequelize.QueryTypes.SELECT,
+        transaction: t,
+      }
+    );
+
+    if (enabledProducts.length !== productIds.length) {
+      await t.rollback();
+      return res
+        .status(400)
+        .json("Hay productos no habilitados para agregar al pedido");
     }
 
     // Obtengo el último idPedido
@@ -101,6 +181,51 @@ controllers.postPedido = async (req, res) => {
   } catch (e) {
     await t.rollback();
     res.status(500).json(`Error al ingresar el pedido: ${e}`);
+  }
+};
+
+controllers.patchArticuloPedidoHabilitado = async (req, res) => {
+  try {
+    const { codigo, habilitado } = req.body;
+    const parsedCodigo = parseInt(codigo, 10);
+
+    if (Number.isNaN(parsedCodigo) || typeof habilitado !== "boolean") {
+      return res
+        .status(400)
+        .json("codigo debe ser numérico y habilitado debe ser boolean");
+    }
+
+    const articulo = await db.sequelize.query(
+      `SELECT CODIGO FROM MRCCENTRAL.DBO.ARTICULO WHERE CODIGO = :codigo`,
+      {
+        replacements: { codigo: parsedCodigo },
+        type: db.sequelize.QueryTypes.SELECT,
+      }
+    );
+
+    if (articulo.length === 0) {
+      return res.status(404).json("Artículo no encontrado");
+    }
+
+    await db.sequelize.query(
+      `UPDATE MRCCENTRAL.DBO.ARTICULO
+      SET ${PEDIDO_ENABLE_COLUMN} = :habilitado
+      WHERE CODIGO = :codigo`,
+      {
+        replacements: { codigo: parsedCodigo, habilitado: habilitado ? 1 : 0 },
+        type: db.sequelize.QueryTypes.UPDATE,
+      }
+    );
+
+    res.status(200).json({
+      codigo: parsedCodigo,
+      habilitado,
+      mensaje: "Estado de pedido actualizado correctamente",
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json("Error al actualizar habilitación de pedido. Detalle: " + error);
   }
 };
 

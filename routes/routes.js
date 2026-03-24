@@ -28,6 +28,28 @@ router.get('/productos', middlewares.checkJWT, controllers.getProductos);
 
 /**
  * @swagger
+ * /productos/admin:
+ *   get:
+ *     summary: Listar articulos elegibles para web (admin), con flag permitePedidoCompras
+ *     description: Mismos filtros que GET /productos para SEVENDE, INVISIBL y WEB; no filtra por PERMITE_PEDIDO_COMPRAS. Solo rol admin.
+ *     tags: [Productos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de articulos web con flag permitePedidoCompras
+ *       401:
+ *         description: No autorizado
+ */
+router.get(
+  '/productos/admin',
+  middlewares.checkJWT,
+  middlewares.checkIfAdminJWT,
+  controllers.getProductosAdmin
+);
+
+/**
+ * @swagger
  * /rubros:
  *   get:
  *     summary: Obtener rubros
@@ -41,6 +63,49 @@ router.get('/productos', middlewares.checkJWT, controllers.getProductos);
  *         description: No autorizado
  */
 router.get('/rubros', middlewares.checkJWT, controllers.getRubros);
+
+/**
+ * @swagger
+ * /articulos/pedido-habilitado:
+ *   patch:
+ *     summary: Habilitar o deshabilitar un articulo para pedidos
+ *     tags: [Productos]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - codigo
+ *               - habilitado
+ *             properties:
+ *               codigo:
+ *                 type: integer
+ *                 description: Codigo del articulo
+ *                 example: 1234
+ *               habilitado:
+ *                 type: boolean
+ *                 description: Estado para permitir agregar al pedido
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Estado del articulo actualizado
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Articulo no encontrado
+ */
+router.patch(
+  '/articulos/pedido-habilitado',
+  middlewares.checkJWT,
+  middlewares.checkIfAdminJWT,
+  controllers.patchArticuloPedidoHabilitado
+);
 
 /**
  * @swagger
