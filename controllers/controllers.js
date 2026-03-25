@@ -13,33 +13,33 @@ function bitToBoolean(value) {
 
 controllers.getProductos = async (req, res) => {
   try {
-    let resultSelect = await db.sequelize
-      .query(
-        `SELECT a.CODIGO, a.DESCRIP, a.PRECIO, r.r_descrip
-            FROM MRCCENTRAL.DBO.ARTICULO a
-            JOIN MRCCENTRAL.DBO.RUBRO r ON a.rubro=r.r_codigo
-            WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1 AND a.${PEDIDO_ENABLE_COLUMN}=1 
-            ORDER BY DESCRIP`,
-        {
-          type: db.sequelize.QueryTypes.SELECT,
-        }
-      )
+    const rows = await db.sequelize.query(
+      `SELECT a.CODIGO, a.DESCRIP, a.PRECIO, r.r_descrip,
+        CAST(a.${PEDIDO_ENABLE_COLUMN} AS INT) AS permitePedidoCompras
+      FROM MRCCENTRAL.DBO.ARTICULO a
+      JOIN MRCCENTRAL.DBO.RUBRO r ON a.rubro=r.r_codigo
+      WHERE a.SEVENDE=1 AND a.INVISIBL=0 AND a.WEB=1
+      ORDER BY a.DESCRIP`,
+      {
+        type: db.sequelize.QueryTypes.SELECT,
+      }
+    );
 
-      .then((resultSelect) => {
-        let resultToSend = resultSelect.map((item) => {
-          return {
-            id: item.CODIGO,
-            descripcion: item.DESCRIP,
-            precio: item.PRECIO,
-            rubro: item.r_descrip,
-          };
-        });
-        for (var n = 0; n < resultToSend.length; n++) {
-          resultToSend[n].id = parseInt(resultToSend[n].id);
-          resultToSend[n].descripcion = resultToSend[n].descripcion.trim();
-        }
-        res.json(resultToSend);
-      });
+    const resultToSend = rows.map((item) => {
+      const rawFlag =
+        item.permitePedidoCompras ??
+        item.PERMITE_PEDIDO_COMPRAS ??
+        item.PERMITEPEDIDOCOMPRAS;
+      return {
+        id: parseInt(item.CODIGO, 10),
+        descripcion: (item.DESCRIP || "").toString().trim(),
+        precio: item.PRECIO,
+        rubro: (item.r_descrip || "").toString().trim(),
+        permitePedidoCompras: bitToBoolean(rawFlag),
+      };
+    });
+
+    res.json(resultToSend);
   } catch (e) {
     res.status(500).json("Error al obtener los productos. Detalle: " + e);
   }
