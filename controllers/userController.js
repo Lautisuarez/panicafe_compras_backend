@@ -44,6 +44,9 @@ const addUser = async (req, res) => {
 };
 
 const login = async (req, res) => {
+  const invalidCredentials = () =>
+    res.status(401).json("Datos Incorrectos");
+
   const { usuario, pass } = req.body;
   if (!usuario || !pass) {
     return res.status(400).json("El usuario o contraseña son necesarios.");
@@ -66,7 +69,7 @@ const login = async (req, res) => {
     .find({ usuario: usuarioLowerCase })
     .then(function (result) {
       if (!result[0]) {
-        return res.status(401).json("Datos Incorrectos");
+        return invalidCredentials();
       }
       const { usuario, pass: passHash, nombre, isAdmin, id } = result[0];
       if (usuario === usuarioLowerCase && passHash === pass) {
@@ -83,11 +86,11 @@ const login = async (req, res) => {
           token: token,
         });
       } else {
-        res.status(401).json("Datos Incorrectos");
+        invalidCredentials();
       }
     })
     .catch(() => {
-      return res.status(401).json("Datos Incorrectos");
+      return invalidCredentials();
     });
 };
 
