@@ -19,6 +19,8 @@ jobs:
         script: |
           cd /home/administrador/web/panicafe
           git fetch origin
-          npm install --omit=dev
+          git checkout master
+          git reset --hard origin/master
+          npm ci --omit=dev 2>/dev/null || npm install --omit=dev
           pm2 restart panicafe || pm2 start index.js --name panicafe
           pm2 save
