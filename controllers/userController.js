@@ -95,19 +95,45 @@ const login = async (req, res) => {
 };
 
 const getUsers = async (req, res) => {
-  const rows = await mongo.usuarios.find().select("usuario -_id").lean();
-  res.status(200).json(rows.map((u) => u.usuario));
+  const rows = await mongo.usuarios
+    .find()
+    .select("usuario nombre email id isAdmin -_id")
+    .lean();
+  res.status(200).json(rows);
 };
 
 const editUser = async (req, res) => {
   try {
-    const datos = req.body;
-    const usuariotoLower = datos.usuario.toLowerCase();
-    await mongo.usuarios.findOne({ usuario: usuariotoLower });
-    res.status(201).json("Usuario Modificado");
+    const { usuario, nombre, email, id, isAdmin, password } = req.body;
+    if (!usuario || typeof usuario !== "string") {
+      return res.status(400).json("usuario es requerido");
+    }
+    const key = usuario.toLowerCase();
+    const update = {};
+    if (nombre !== undefined) update.nombre = nombre;
+    if (email !== undefined) update.email = email;
+    if (id !== undefined) update.id = Number(id);
+    if (isAdmin !== undefined) update.isAdmin = Number(isAdmin);
+    if (password !== undefined && String(password).length > 0) {
+      update.pass = password;
+    }
+
+    const updated = await mongo.usuarios
+      .findOneAndUpdate(
+        { usuario: key },
+        { $set: update },
+        { new: true }
+      )
+      .select("usuario nombre email id isAdmin -_id")
+      .lean();
+
+    if (!updated) {
+      return res.status(404).json("El usuario no existe");
+    }
+    res.status(200).json({ message: "Usuario modificado", user: updated });
   } catch (e) {
     console.error(e);
-    res.status(401).json("error");
+    res.status(500).json("error");
   }
 };
 
