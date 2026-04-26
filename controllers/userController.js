@@ -94,16 +94,36 @@ const login = async (req, res) => {
     });
 };
 
+const firstDefinedString = (doc, keys) => {
+  for (const k of keys) {
+    if (doc[k] == null) continue;
+    return String(doc[k]);
+  }
+  return "";
+};
+
 const getUsers = async (req, res) => {
-  const rows = await mongo.usuarios.find().select("-pass").lean();
-  const payload = rows.map((doc) => ({
-    usuario: doc.usuario,
-    nombre: doc.nombre != null ? String(doc.nombre) : "",
-    email: doc.email != null ? String(doc.email) : "",
-    id: doc.id,
-    isAdmin: doc.isAdmin,
-  }));
-  res.status(200).json(payload);
+  if (mongo.mongoDisabled) {
+    return res.status(200).json([]);
+  }
+  try {
+    // Native driver: returns raw BSON. Mongoose find().lean() was omitting nombre/email for some documents.
+    const rows = await mongo.usuarios.collection
+      .find({})
+      .project({ pass: 0 })
+      .toArray();
+    const payload = rows.map((doc) => ({
+      usuario: firstDefinedString(doc, ["usuario", "Usuario"]),
+      nombre: firstDefinedString(doc, ["nombre", "Nombre"]),
+      email: firstDefinedString(doc, ["email", "Email"]),
+      id: doc.id,
+      isAdmin: doc.isAdmin,
+    }));
+    res.status(200).json(payload);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json("error");
+  }
 };
 
 const editUser = async (req, res) => {
