@@ -95,11 +95,15 @@ const login = async (req, res) => {
 };
 
 const getUsers = async (req, res) => {
-  const rows = await mongo.usuarios
-    .find()
-    .select("usuario nombre email id isAdmin -_id")
-    .lean();
-  res.status(200).json(rows);
+  const rows = await mongo.usuarios.find().select("-pass").lean();
+  const payload = rows.map((doc) => ({
+    usuario: doc.usuario,
+    nombre: doc.nombre != null ? String(doc.nombre) : "",
+    email: doc.email != null ? String(doc.email) : "",
+    id: doc.id,
+    isAdmin: doc.isAdmin,
+  }));
+  res.status(200).json(payload);
 };
 
 const editUser = async (req, res) => {
