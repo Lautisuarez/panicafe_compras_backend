@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const controllers = require('../controllers/controllers');
+const controllers = require('../controllers');
 const middlewares = require('../middlewares/middlewares');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @swagger
@@ -45,7 +47,7 @@ router.get(
   '/productos/admin',
   middlewares.checkJWT,
   middlewares.checkIfAdmin1Or3JWT,
-  controllers.getProductosAdmin
+  controllers.getProductos
 );
 
 /**
@@ -345,5 +347,12 @@ router.post('/mispedidos', middlewares.checkJWT, controllers.misPedidos);
  *         description: No autorizado
  */
 router.post('/mispedidosdetalle', middlewares.checkJWT, controllers.misPedidosDetalle);
+
+
+const invoiceAuth = [middlewares.checkJWT, middlewares.checkIfAdminJWT];
+router.get('/productos/search', ...invoiceAuth, controllers.searchProductos);
+router.post('/facturas/parse', ...invoiceAuth, upload.single('file'), controllers.parseInvoicePdf);
+router.post('/facturas/match', ...invoiceAuth, controllers.matchInvoiceItems);
+router.post('/facturas/stock', ...invoiceAuth, controllers.saveInvoiceStock);
 
 module.exports = router;

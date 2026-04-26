@@ -2,10 +2,9 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsDoc = require('swagger-jsdoc');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const routes = require('./routes/routes');
 
-// Configuración de Swagger
+// Swagger
 const swaggerOptions = {
     swaggerDefinition: {
         openapi: '3.0.0',
@@ -42,31 +41,21 @@ const swaggerOptions = {
     apis: ['./routes/*.js'],
 };
 
-// Inicializar la aplicación
 const app = express();
 
-// Middleware
 const corsOptions = {
     origin: '*',
     optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
-app.use(bodyParser.json());
+app.use(express.json({ limit: '1mb' }));
 
-// Configurar Swagger UI
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
-// Rutas de la API
 app.use('/', routes);
 
-// Inicializar el servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    const t = new Date();
-    const z = t.getTimezoneOffset() * 60 * 1000;
-    const tLocal = new Date(t - z);
-    const date = tLocal.toISOString().slice(0, 19).replace('T', ' ');
-
-    console.log(`Servidor inicializado en el puerto ${PORT} a las ${date}`);
+    console.log(`Server listening on port ${PORT}`);
 });
