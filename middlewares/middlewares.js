@@ -59,6 +59,21 @@ middlewares.checkIfAdmin1Or3JWT = async (req, res, next) => {
   });
 };
 
+/** isAdmin 1 (full admin) or 4 (escaneo de facturas): facturas + productos/search. */
+middlewares.checkIfAdmin1Or4JWT = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  jwt.verify(token, privateKey, (err, decoded) => {
+    if (err) {
+      return res.json({ mensaje: "No tiene permisos" });
+    } else {
+      decoded.isAdmin === 1 || decoded.isAdmin === 4
+        ? next()
+        : res.json({ mensaje: "No tiene los permisos necesarios" });
+    }
+  });
+};
+
 middlewares.checkIsExist = async (req, res, next) => {
   const usuarioBody = req.body.usuario.toLowerCase();
   let checkuser = await mongo.usuarios

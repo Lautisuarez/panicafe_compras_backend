@@ -349,7 +349,7 @@ router.post('/mispedidos', middlewares.checkJWT, controllers.misPedidos);
 router.post('/mispedidosdetalle', middlewares.checkJWT, controllers.misPedidosDetalle);
 
 
-const invoiceAuth = [middlewares.checkJWT, middlewares.checkIfAdminJWT];
+const invoiceAuth = [middlewares.checkJWT, middlewares.checkIfAdmin1Or4JWT];
 router.get('/productos/search', ...invoiceAuth, controllers.searchProductos);
 router.post('/facturas/parse', ...invoiceAuth, upload.single('file'), controllers.parseInvoicePdf);
 router.post('/facturas/match', ...invoiceAuth, controllers.matchInvoiceItems);
