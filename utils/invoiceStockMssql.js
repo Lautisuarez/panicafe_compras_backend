@@ -124,6 +124,51 @@ function toNumOrZero(v) {
 }
 
 /**
+ * SQL Server `datetime` (not `datetimeoffset`) often fails on literals with a timezone (e.g. from Tedious/Date binding).
+ * Send plain "yyyy-MM-dd HH:mm:ss.mmm" without offset.
+ */
+function dateToMssqlDateTimeString(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+    return d;
+  }
+  const p = (n) => String(n).padStart(2, "0");
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+  return (
+    d.getFullYear() +
+    "-" +
+    p(d.getMonth() + 1) +
+    "-" +
+    p(d.getDate()) +
+    " " +
+    p(d.getHours()) +
+    ":" +
+    p(d.getMinutes()) +
+    ":" +
+    p(d.getSeconds()) +
+    "." +
+    ms
+  );
+}
+
+/** Row may contain `Date` from the driver on template; convert all datetimes, keep horamovimiento as char(8) time. */
+function normalizeMssqlComprobanteRowDates(row) {
+  for (const k of Object.keys(row)) {
+    const v = row[k];
+    const kl = k.toLowerCase();
+    if (kl === "horamovimiento") {
+      if (v instanceof Date) {
+        const p = (n) => String(n).padStart(2, "0");
+        row[k] = `${p(v.getHours())}:${p(v.getMinutes())}:${p(v.getSeconds())}`;
+      }
+      continue;
+    }
+    if (v instanceof Date) {
+      row[k] = dateToMssqlDateTimeString(v);
+    }
+  }
+}
+
+/**
  * INSERT full row: copy last IN+tipo row, then override business fields. Avoids NULL on NOT NULL columns.
  * @param {import('sequelize').Sequelize} sql
  * @param {import('sequelize').Transaction} t
@@ -215,6 +260,8 @@ async function insertStockComprobanteWithTemplate(
       delete row[k];
     }
   }
+
+  normalizeMssqlComprobanteRowDates(row);
 
   const cols = Object.keys(row);
   if (cols.length === 0) {
