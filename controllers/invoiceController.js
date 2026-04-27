@@ -115,21 +115,24 @@ const saveInvoiceStock = async (req, res) => {
     const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
     const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
 
-    // idk is IDENTITY: do not supply it; read generated value from OUTPUT
+    // idk is IDENTITY. OUTPUT without INTO is invalid when the table has triggers;
+    // use OUTPUT ... INTO @table to capture the new row id safely.
     const [insertedCpb] = await sql.query(
-      `INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
+      `DECLARE @newId TABLE (idk DECIMAL(18, 0));
+      INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
         tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
         idproveedor, tipomovimiento, anulado,
         idlocal, iddeposito, fechamovimiento, horamovimiento
       )
-      OUTPUT INSERTED.idk AS idk
+      OUTPUT INSERTED.idk INTO @newId
       VALUES (
         :tipo, :prefijo, :numero,
         :fecha, :total, :bonificacion,
         :idproveedor, 'IN', 0,
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
-      )`,
+      );
+      SELECT idk FROM @newId;`,
       {
         type: sql.QueryTypes.SELECT,
         replacements: {
