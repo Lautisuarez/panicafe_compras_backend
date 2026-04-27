@@ -5,6 +5,7 @@ const {
   assertInvoiceStockReferences,
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
+  insertStockMovimientoWithTemplate,
 } = require("../utils/invoiceStockMssql");
 
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
@@ -187,22 +188,10 @@ const saveInvoiceStock = async (req, res) => {
     });
 
     for (const item of items) {
-      await sql.query(
-        `INSERT INTO MRCCENTRAL.DBO.StockMovimientos (
-          idcomprobante, idproducto, cantidad, precio
-        ) VALUES (
-          :idcomprobante, :idproducto, :cantidad, :precio
-        )`,
-        {
-          replacements: {
-            idcomprobante: nextComprobanteIdk,
-            idproducto: item.articuloCodigo,
-            cantidad: item.cantidad,
-            precio: item.precio,
-          },
-          transaction: t,
-        }
-      );
+      await insertStockMovimientoWithTemplate(sql, t, {
+        comprobanteIdk: nextComprobanteIdk,
+        item,
+      });
     }
 
     await insertStockImpuestosFromTemplate(sql, t, nextComprobanteIdk, totales);

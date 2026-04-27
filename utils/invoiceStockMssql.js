@@ -286,6 +286,91 @@ async function insertStockComprobanteWithTemplate(
   return idk;
 }
 
+/**
+ * @param {import('sequelize').Sequelize} sql
+ * @param {import('sequelize').Transaction} t
+ * @param {{ comprobanteIdk: number, item: { articuloCodigo: unknown, cantidad: unknown, precio: unknown } }} params
+ */
+function normalizeMssqlMovimientoRowDates(row) {
+  for (const k of Object.keys(row)) {
+    if (row[k] instanceof Date) {
+      row[k] = dateToMssqlDateTimeString(row[k]);
+    }
+  }
+}
+
+async function insertStockMovimientoWithTemplate(sql, t, { comprobanteIdk, item }) {
+  const q1 = `SELECT TOP 1 m.*
+     FROM MRCCENTRAL.dbo.StockMovimientos m
+     INNER JOIN MRCCENTRAL.dbo.StockComprobantes c ON m.idcomprobante = c.idk
+     WHERE c.tipomovimiento = 'IN' AND c.tipocomprobante IN ('FCA', 'FCB', 'FCC')
+     ORDER BY m.idk DESC`;
+  let rows = unwrapSelect(
+    await sql.query(q1, { type: sql.QueryTypes.SELECT, transaction: t })
+  );
+  if (rows.length === 0) {
+    const q2 = `SELECT TOP 1 * FROM MRCCENTRAL.dbo.StockMovimientos ORDER BY idk DESC`;
+    rows = unwrapSelect(
+      await sql.query(q2, { type: sql.QueryTypes.SELECT, transaction: t })
+    );
+  }
+  if (rows.length === 0) {
+    const e = new Error(
+      "No hay fila de referencia en StockMovimientos para el alta (plantilla vacía)"
+    );
+    e.statusCode = 400;
+    throw e;
+  }
+
+  const row = { ...rows[0] };
+  deleteColCI(row, "idk");
+  deleteColCI(row, "ts");
+
+  setRowColCaseInsensitive(row, "idcomprobante", comprobanteIdk);
+  setRowColCaseInsensitive(row, "idproducto", item.articuloCodigo);
+  setRowColCaseInsensitive(row, "cantidad", toNumOrZero(item.cantidad));
+  const prec = toNumOrZero(item.precio);
+  setRowColCaseInsensitive(row, "precio", prec);
+  setRowColCaseInsensitive(row, "precioacuerdo", prec);
+  setRowColCaseInsensitive(row, "bonificacion", 0);
+
+  const uiKey = Object.keys(row).find((k) => k.toLowerCase() === "ui");
+  if (uiKey) {
+    try {
+      row[uiKey] = crypto.randomUUID();
+    } catch {
+      row[uiKey] = "00000000-0000-0000-0000-000000000000";
+    }
+  }
+  const idKey = Object.keys(row).find((k) => k.length === 2 && k.toLowerCase() === "id");
+  if (idKey) {
+    row[idKey] = 0;
+  }
+  const txKey = Object.keys(row).find((k) => k.toLowerCase() === "tx");
+  if (txKey) {
+    row[txKey] = false;
+  }
+  const oxKey = Object.keys(row).find((k) => k.toLowerCase() === "ox");
+  if (oxKey) {
+    row[oxKey] = 0;
+  }
+
+  for (const k of Object.keys(row)) {
+    if (row[k] === undefined) {
+      delete row[k];
+    }
+  }
+  normalizeMssqlMovimientoRowDates(row);
+
+  const cols = Object.keys(row);
+  const colSql = cols.map((c) => `[${c.replace(/]/g, "]]")}]`).join(", ");
+  const ph = cols.map((c) => `:${c}`).join(", ");
+  await sql.query(
+    `INSERT INTO MRCCENTRAL.dbo.StockMovimientos (${colSql}) VALUES (${ph})`,
+    { type: sql.QueryTypes.INSERT, transaction: t, replacements: row }
+  );
+}
+
 /** Clone STOCKIMPUESTOS from latest IN (FCA/FCB/FCC) row; fill net/IVA from `totales`. */
 async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales) {
   const tNum = toNum(totales?.total);
@@ -367,4 +452,5 @@ module.exports = {
   assertInvoiceStockReferences,
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
+  insertStockMovimientoWithTemplate,
 };
