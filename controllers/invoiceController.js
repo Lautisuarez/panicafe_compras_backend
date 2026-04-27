@@ -115,27 +115,24 @@ const saveInvoiceStock = async (req, res) => {
     const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
     const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
 
-    const lastIdkResult = await sql.query(
-      `SELECT TOP 1 idk FROM MRCCENTRAL.DBO.StockComprobantes ORDER BY idk DESC`,
-      { type: sql.QueryTypes.SELECT, transaction: t }
-    );
-    const nextComprobanteIdk = (lastIdkResult.length > 0 ? lastIdkResult[0].idk : 0) + 1;
-
-    await sql.query(
+    // idk is IDENTITY: do not supply it; read generated value from OUTPUT
+    const [insertedCpb] = await sql.query(
       `INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
-        idk, tipocomprobante, prefijocomprobante, numerocomprobante,
+        tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
         idproveedor, tipomovimiento, anulado,
         idlocal, iddeposito, fechamovimiento, horamovimiento
-      ) VALUES (
-        :idk, :tipo, :prefijo, :numero,
+      )
+      OUTPUT INSERTED.idk AS idk
+      VALUES (
+        :tipo, :prefijo, :numero,
         :fecha, :total, :bonificacion,
         :idproveedor, 'IN', 0,
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
       )`,
       {
+        type: sql.QueryTypes.SELECT,
         replacements: {
-          idk: nextComprobanteIdk,
           tipo: tipoComprobante,
           prefijo: comprobante.prefijo,
           numero: comprobante.numero,
@@ -149,23 +146,17 @@ const saveInvoiceStock = async (req, res) => {
         transaction: t,
       }
     );
-
-    const lastMovIdkResult = await sql.query(
-      `SELECT TOP 1 idk FROM MRCCENTRAL.DBO.StockMovimientos ORDER BY idk DESC`,
-      { type: sql.QueryTypes.SELECT, transaction: t }
-    );
-    let nextMovIdk = (lastMovIdkResult.length > 0 ? lastMovIdkResult[0].idk : 0) + 1;
+    const nextComprobanteIdk = insertedCpb[0].idk;
 
     for (const item of items) {
       await sql.query(
         `INSERT INTO MRCCENTRAL.DBO.StockMovimientos (
-          idk, idcomprobante, idproducto, cantidad, precio
+          idcomprobante, idproducto, cantidad, precio
         ) VALUES (
-          :idk, :idcomprobante, :idproducto, :cantidad, :precio
+          :idcomprobante, :idproducto, :cantidad, :precio
         )`,
         {
           replacements: {
-            idk: nextMovIdk,
             idcomprobante: nextComprobanteIdk,
             idproducto: item.articuloCodigo,
             cantidad: item.cantidad,
@@ -174,7 +165,6 @@ const saveInvoiceStock = async (req, res) => {
           transaction: t,
         }
       );
-      nextMovIdk++;
     }
 
     await insertStockImpuestosFromTemplate(sql, t, nextComprobanteIdk, totales);

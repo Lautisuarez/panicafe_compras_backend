@@ -113,18 +113,16 @@ async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales)
     return;
   }
 
-  const [nextRow] = await sql.query(
-    `SELECT ISNULL(MAX(idk), 0) + 1 AS n FROM MRCCENTRAL.dbo.STOCKIMPUESTOS`,
-    { type: sql.QueryTypes.SELECT, transaction: t }
-  );
-  const nextStImpIdk = nextRow && nextRow.n != null ? nextRow.n : 1;
-
   const row = { ...tpl };
   const tsKey = Object.keys(row).find((k) => k.toLowerCase() === "ts");
   if (tsKey) {
     delete row[tsKey];
   }
-  setRowColCaseInsensitive(row, "idk", nextStImpIdk);
+  // idk is IDENTITY: omit from INSERT so SQL Server generates it
+  const idkKey = Object.keys(row).find((k) => k.toLowerCase() === "idk");
+  if (idkKey) {
+    delete row[idkKey];
+  }
   setRowColCaseInsensitive(row, "IDCOMPROBANTE", comprobanteIdk);
   const uiKey = Object.keys(row).find((k) => k.toLowerCase() === "ui");
   if (uiKey) {
