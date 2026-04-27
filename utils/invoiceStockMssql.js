@@ -289,7 +289,7 @@ async function insertStockComprobanteWithTemplate(
 /**
  * @param {import('sequelize').Sequelize} sql
  * @param {import('sequelize').Transaction} t
- * @param {{ comprobanteIdk: number, item: { articuloCodigo: unknown, cantidad: unknown, precio: unknown } }} params
+ * @param {{ comprobanteIdk: number, item: { articuloCodigo: unknown, cantidad: unknown, precio: unknown, iva?: unknown } }} params
  */
 function normalizeMssqlMovimientoRowDates(row) {
   for (const k of Object.keys(row)) {
@@ -333,6 +333,10 @@ async function insertStockMovimientoWithTemplate(sql, t, { comprobanteIdk, item 
   setRowColCaseInsensitive(row, "precio", prec);
   setRowColCaseInsensitive(row, "precioacuerdo", prec);
   setRowColCaseInsensitive(row, "bonificacion", 0);
+  setRowColCaseInsensitive(row, "observaciones", "");
+  if (item.iva != null) {
+    setRowColCaseInsensitive(row, "iva", toNumOrZero(item.iva));
+  }
 
   const uiKey = Object.keys(row).find((k) => k.toLowerCase() === "ui");
   if (uiKey) {
