@@ -25,6 +25,23 @@ function selectResultRows(result) {
   return result;
 }
 
+/** After some SQL errors, the server has already ended the transaction; a second ROLLBACK raises 3903. */
+async function safeRollbackSequelizeTransaction(transaction) {
+  if (!transaction) {
+    return;
+  }
+  try {
+    await transaction.rollback();
+  } catch (e) {
+    const n = e?.parent?.number ?? e?.original?.number;
+    const msg = String(e?.message ?? e?.parent?.message ?? "");
+    if (n === 3903 || /no corresponding BEGIN TRANSACTION/i.test(msg)) {
+      return;
+    }
+    throw e;
+  }
+}
+
 const parseInvoicePdf = async (req, res) => {
   try {
     if (!req.file) {
@@ -120,7 +137,7 @@ const saveInvoiceStock = async (req, res) => {
     const { comprobante, idproveedor = 0, idlocal = 1, iddeposito = 1, items, totales } = req.body;
 
     if (!comprobante || !Array.isArray(items) || items.length === 0) {
-      await t.rollback();
+      await safeRollbackSequelizeTransaction(t);
       return res.status(400).json({ mensaje: "Se requiere comprobante e items" });
     }
 
@@ -197,7 +214,7 @@ const saveInvoiceStock = async (req, res) => {
       movimientos: items.length,
     });
   } catch (error) {
-    await t.rollback();
+    await safeRollbackSequelizeTransaction(t);
     console.error("Error guardando stock:", error);
     if (error.statusCode === 400) {
       return res.status(400).json({ mensaje: error.message || "Solicitud invalida" });
