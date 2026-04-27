@@ -157,14 +157,14 @@ const saveInvoiceStock = async (req, res) => {
       INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
         idcomprobante, tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
-        idproveedor, tipomovimiento, anulado,
+        idproveedor, tipomovimiento, idcausamovimiento, anulado,
         idlocal, iddeposito, fechamovimiento, horamovimiento
       )
       OUTPUT INSERTED.idk INTO @newId
       VALUES (
         :nextIdComprobante, :tipo, :prefijo, :numero,
         TRY_CONVERT(DATE, :fecha, 23), :total, :bonificacion,
-        :idproveedor, 'IN', 0,
+        :idproveedor, 'IN', 1, 0,
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
       );
       SELECT idk FROM @newId;`,
