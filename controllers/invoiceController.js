@@ -7,7 +7,12 @@ const {
 } = require("../utils/invoiceStockMssql");
 
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
-const CPB_MAX = { tipocomprobante: 3, prefijocomprobante: 4, numerocomprobante: 8 };
+const CPB_MAX = {
+  tipocomprobante: 3,
+  prefijocomprobante: 4,
+  numerocomprobante: 8,
+  observaciones: 200,
+};
 
 /** Sequelize SELECT: sometimes `[rows]`, sometimes `[rows, metadata]` — return `rows` only. */
 function selectResultRows(result) {
@@ -134,6 +139,9 @@ const saveInvoiceStock = async (req, res) => {
     const numeroSql = String(comprobante.numero ?? "")
       .trim()
       .slice(0, CPB_MAX.numerocomprobante);
+    const observacionesSql = String(comprobante.observaciones ?? "")
+      .trim()
+      .slice(0, CPB_MAX.observaciones);
 
     const nextIdCpbRow = selectResultRows(
       await sql.query(
@@ -158,14 +166,14 @@ const saveInvoiceStock = async (req, res) => {
         idcomprobante, tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
         idproveedor, tipomovimiento, idcausamovimiento, anulado,
-        idlocal, iddeposito, idbalance, fechamovimiento, horamovimiento
+        idlocal, iddeposito, idbalance, fechamovimiento, horamovimiento, observaciones
       )
       OUTPUT INSERTED.idk INTO @newId
       VALUES (
         :nextIdComprobante, :tipo, :prefijo, :numero,
         TRY_CONVERT(DATE, :fecha, 23), :total, :bonificacion,
         :idproveedor, 'IN', 1, 0,
-        :idlocal, :iddeposito, 1, GETDATE(), CONVERT(char(8), GETDATE(), 108)
+        :idlocal, :iddeposito, 1, GETDATE(), CONVERT(char(8), GETDATE(), 108), :obs
       );
       SELECT idk FROM @newId;`,
         {
@@ -181,6 +189,7 @@ const saveInvoiceStock = async (req, res) => {
             idproveedor,
             idlocal,
             iddeposito,
+            obs: observacionesSql,
           },
           transaction: t,
         }
