@@ -125,6 +125,13 @@ const saveInvoiceStock = async (req, res) => {
       .trim()
       .slice(0, CPB_MAX.numerocomprobante);
 
+    const [nextIdCpbRow] = await sql.query(
+      `SELECT ISNULL(CAST(MAX(idcomprobante) AS DECIMAL(10, 0)), 0) + 1 AS n
+       FROM MRCCENTRAL.dbo.StockComprobantes`,
+      { type: sql.QueryTypes.SELECT, transaction: t }
+    );
+    const nextIdComprobante = nextIdCpbRow[0].n;
+
     // idk is IDENTITY. OUTPUT without INTO is invalid when the table has triggers;
     // use OUTPUT ... INTO @table to capture the new row id safely.
     // String widths from MRCCENTRAL: tipocomprobante char(3), prefijocomprobante char(4), numerocomprobante char(8);
@@ -132,14 +139,14 @@ const saveInvoiceStock = async (req, res) => {
     const [insertedCpb] = await sql.query(
       `DECLARE @newId TABLE (idk DECIMAL(18, 0));
       INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
-        tipocomprobante, prefijocomprobante, numerocomprobante,
+        idcomprobante, tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
         idproveedor, tipomovimiento, anulado,
         idlocal, iddeposito, fechamovimiento, horamovimiento
       )
       OUTPUT INSERTED.idk INTO @newId
       VALUES (
-        :tipo, :prefijo, :numero,
+        :nextIdComprobante, :tipo, :prefijo, :numero,
         TRY_CONVERT(DATE, :fecha, 23), :total, :bonificacion,
         :idproveedor, 'IN', 0,
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
@@ -148,6 +155,7 @@ const saveInvoiceStock = async (req, res) => {
       {
         type: sql.QueryTypes.SELECT,
         replacements: {
+          nextIdComprobante,
           tipo: tipoSql,
           prefijo: prefijoSql,
           numero: numeroSql,
