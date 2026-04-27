@@ -4,6 +4,7 @@ const parseInvoiceText = require("../utils/invoiceParser");
 const {
   assertInvoiceStockReferences,
   insertStockImpuestosFromTemplate,
+  insertStockComprobanteWithTemplate,
 } = require("../utils/invoiceStockMssql");
 
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
@@ -155,51 +156,18 @@ const saveInvoiceStock = async (req, res) => {
       throw new Error("No se pudo calcular el siguiente idcomprobante");
     }
 
-    // idk is IDENTITY. OUTPUT without INTO is invalid when the table has triggers;
-    // use OUTPUT ... INTO @table to capture the new row id safely.
-    // String widths from MRCCENTRAL: tipocomprobante char(3), prefijocomprobante char(4), numerocomprobante char(8);
-    // fechacomprobante is datetime — bind as date, not varchar.
-    const insertedCpb = selectResultRows(
-      await sql.query(
-        `DECLARE @newId TABLE (idk DECIMAL(18, 0));
-      INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
-        idcomprobante, tipocomprobante, prefijocomprobante, numerocomprobante,
-        fechacomprobante, totalcomprobante, bonificacioncomprobante,
-        idproveedor, tipomovimiento, idcausamovimiento, anulado,
-        idlocal, iddeposito, idbalance, fechamovimiento, horamovimiento, observaciones
-      )
-      OUTPUT INSERTED.idk INTO @newId
-      VALUES (
-        :nextIdComprobante, :tipo, :prefijo, :numero,
-        TRY_CONVERT(DATE, :fecha, 23), :total, :bonificacion,
-        :idproveedor, 'IN', 1, 0,
-        :idlocal, :iddeposito, 1, GETDATE(), CONVERT(char(8), GETDATE(), 108), :obs
-      );
-      SELECT idk FROM @newId;`,
-        {
-          type: sql.QueryTypes.SELECT,
-          replacements: {
-            nextIdComprobante,
-            tipo: tipoSql,
-            prefijo: prefijoSql,
-            numero: numeroSql,
-            fecha: comprobante.fecha,
-            total: comprobante.total,
-            bonificacion: comprobante.bonificacion,
-            idproveedor,
-            idlocal,
-            iddeposito,
-            obs: observacionesSql,
-          },
-          transaction: t,
-        }
-      )
-    );
-    const idkRow = insertedCpb[0];
-    const nextComprobanteIdk = idkRow?.idk ?? idkRow?.IDK;
-    if (nextComprobanteIdk == null) {
-      throw new Error("No se pudo leer idk del comprobante insertado");
-    }
+    // Full row: copy last IN+tipo template from DB, then override comprobante fields (all NOT NULL + triggers safe).
+    const nextComprobanteIdk = await insertStockComprobanteWithTemplate(sql, t, {
+      nextIdComprobante,
+      comprobante,
+      idproveedor,
+      idlocal,
+      iddeposito,
+      tipoSql,
+      prefijoSql,
+      numeroSql,
+      observacionesSql,
+    });
 
     for (const item of items) {
       await sql.query(

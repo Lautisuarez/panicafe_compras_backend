@@ -93,6 +93,152 @@ function setRowColCaseInsensitive(row, colName, value) {
   }
 }
 
+function deleteColCI(row, colName) {
+  const k = Object.keys(row).find((x) => x.toLowerCase() === colName.toLowerCase());
+  if (k) {
+    delete row[k];
+  }
+}
+
+/** Same shape as in invoiceController: Sequelize can return [rows] or [rows, meta]. */
+function unwrapSelect(result) {
+  if (result == null) return [];
+  if (Array.isArray(result) && result.length >= 1 && Array.isArray(result[0])) {
+    return result[0];
+  }
+  if (Array.isArray(result)) {
+    return result;
+  }
+  return [];
+}
+
+function horaMovimientoNow() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function toNumOrZero(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * INSERT full row: copy last IN+tipo row, then override business fields. Avoids NULL on NOT NULL columns.
+ * @param {import('sequelize').Sequelize} sql
+ * @param {import('sequelize').Transaction} t
+ * @returns {Promise<number>} new idk
+ */
+async function insertStockComprobanteWithTemplate(
+  sql,
+  t,
+  {
+    nextIdComprobante,
+    comprobante,
+    idproveedor,
+    idlocal,
+    iddeposito,
+    tipoSql,
+    prefijoSql,
+    numeroSql,
+    observacionesSql,
+  }
+) {
+  const q1 = `SELECT TOP 1 * FROM MRCCENTRAL.dbo.StockComprobantes
+     WHERE tipomovimiento = 'IN' AND tipocomprobante = :tipo
+     ORDER BY idk DESC`;
+  let rows = unwrapSelect(
+    await sql.query(q1, {
+      type: sql.QueryTypes.SELECT,
+      transaction: t,
+      replacements: { tipo: tipoSql },
+    })
+  );
+  if (rows.length === 0) {
+    const q2 = `SELECT TOP 1 * FROM MRCCENTRAL.dbo.StockComprobantes
+       WHERE tipomovimiento = 'IN' ORDER BY idk DESC`;
+    rows = unwrapSelect(
+      await sql.query(q2, { type: sql.QueryTypes.SELECT, transaction: t })
+    );
+  }
+  if (rows.length === 0) {
+    const e = new Error(
+      "No hay fila de referencia IN en StockComprobantes para armar el alta (plantilla vacía)"
+    );
+    e.statusCode = 400;
+    throw e;
+  }
+
+  const row = { ...rows[0] };
+  deleteColCI(row, "idk");
+  deleteColCI(row, "ts");
+
+  setRowColCaseInsensitive(row, "idcomprobante", nextIdComprobante);
+  setRowColCaseInsensitive(row, "tipocomprobante", tipoSql);
+  setRowColCaseInsensitive(row, "prefijocomprobante", prefijoSql);
+  setRowColCaseInsensitive(row, "numerocomprobante", numeroSql);
+  const fd = comprobante.fecha
+    ? new Date(String(comprobante.fecha).slice(0, 10))
+    : new Date();
+  setRowColCaseInsensitive(
+    row,
+    "fechacomprobante",
+    Number.isNaN(fd.getTime()) ? new Date() : fd
+  );
+  setRowColCaseInsensitive(row, "totalcomprobante", toNumOrZero(comprobante.total));
+  setRowColCaseInsensitive(
+    row,
+    "bonificacioncomprobante",
+    toNumOrZero(comprobante.bonificacion)
+  );
+  setRowColCaseInsensitive(row, "idproveedor", idproveedor);
+  setRowColCaseInsensitive(row, "tipomovimiento", "IN");
+  setRowColCaseInsensitive(row, "idcausamovimiento", 1);
+  setRowColCaseInsensitive(row, "anulado", 0);
+  setRowColCaseInsensitive(row, "idlocal", idlocal);
+  setRowColCaseInsensitive(row, "iddeposito", iddeposito);
+  setRowColCaseInsensitive(row, "fechamovimiento", new Date());
+  setRowColCaseInsensitive(row, "horamovimiento", horaMovimientoNow());
+  setRowColCaseInsensitive(row, "observaciones", observacionesSql);
+
+  const uiKey = Object.keys(row).find((k) => k.toLowerCase() === "ui");
+  if (uiKey) {
+    try {
+      row[uiKey] = crypto.randomUUID();
+    } catch {
+      row[uiKey] = "00000000-0000-0000-0000-000000000000";
+    }
+  }
+
+  for (const k of Object.keys(row)) {
+    if (row[k] === undefined) {
+      delete row[k];
+    }
+  }
+
+  const cols = Object.keys(row);
+  if (cols.length === 0) {
+    throw new Error("insertStockComprobanteWithTemplate: no columns to insert");
+  }
+  const colSql = cols.map((c) => `[${c.replace(/]/g, "]]")}]`).join(", ");
+  const ph = cols.map((c) => `:${c}`).join(", ");
+
+  const outRaw = await sql.query(
+    `DECLARE @newId TABLE (idk DECIMAL(18, 0));
+     INSERT INTO MRCCENTRAL.dbo.StockComprobantes (${colSql})
+     OUTPUT INSERTED.idk INTO @newId
+     VALUES (${ph});
+     SELECT idk FROM @newId;`,
+    { type: sql.QueryTypes.SELECT, transaction: t, replacements: row }
+  );
+  const idkRows = unwrapSelect(outRaw);
+  const idk = idkRows[0]?.idk ?? idkRows[0]?.IDK;
+  if (idk == null) {
+    throw new Error("No se pudo leer idk del comprobante insertado");
+  }
+  return idk;
+}
+
 /** Clone STOCKIMPUESTOS from latest IN (FCA/FCB/FCC) row; fill net/IVA from `totales`. */
 async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales) {
   const tNum = toNum(totales?.total);
@@ -173,4 +319,5 @@ module.exports = {
   toNum,
   assertInvoiceStockReferences,
   insertStockImpuestosFromTemplate,
+  insertStockComprobanteWithTemplate,
 };
