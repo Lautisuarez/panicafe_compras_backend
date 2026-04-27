@@ -9,6 +9,16 @@ const {
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
 const CPB_MAX = { tipocomprobante: 3, prefijocomprobante: 4, numerocomprobante: 8 };
 
+/** Sequelize SELECT: sometimes `[rows]`, sometimes `[rows, metadata]` — return `rows` only. */
+function selectResultRows(result) {
+  if (result == null) return [];
+  if (!Array.isArray(result)) return [];
+  if (result.length >= 1 && Array.isArray(result[0])) {
+    return result[0];
+  }
+  return result;
+}
+
 const parseInvoicePdf = async (req, res) => {
   try {
     if (!req.file) {
@@ -125,19 +135,25 @@ const saveInvoiceStock = async (req, res) => {
       .trim()
       .slice(0, CPB_MAX.numerocomprobante);
 
-    const [nextIdCpbRow] = await sql.query(
-      `SELECT ISNULL(CAST(MAX(idcomprobante) AS DECIMAL(10, 0)), 0) + 1 AS n
-       FROM MRCCENTRAL.dbo.StockComprobantes`,
-      { type: sql.QueryTypes.SELECT, transaction: t }
+    const nextIdCpbRow = selectResultRows(
+      await sql.query(
+        `SELECT ISNULL(CAST(MAX(idcomprobante) AS DECIMAL(10, 0)), 0) + 1 AS n
+         FROM MRCCENTRAL.dbo.StockComprobantes`,
+        { type: sql.QueryTypes.SELECT, transaction: t }
+      )
     );
-    const nextIdComprobante = nextIdCpbRow[0].n;
+    const nextIdComprobante = nextIdCpbRow[0]?.n ?? nextIdCpbRow[0]?.N;
+    if (nextIdComprobante == null) {
+      throw new Error("No se pudo calcular el siguiente idcomprobante");
+    }
 
     // idk is IDENTITY. OUTPUT without INTO is invalid when the table has triggers;
     // use OUTPUT ... INTO @table to capture the new row id safely.
     // String widths from MRCCENTRAL: tipocomprobante char(3), prefijocomprobante char(4), numerocomprobante char(8);
     // fechacomprobante is datetime — bind as date, not varchar.
-    const [insertedCpb] = await sql.query(
-      `DECLARE @newId TABLE (idk DECIMAL(18, 0));
+    const insertedCpb = selectResultRows(
+      await sql.query(
+        `DECLARE @newId TABLE (idk DECIMAL(18, 0));
       INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
         idcomprobante, tipocomprobante, prefijocomprobante, numerocomprobante,
         fechacomprobante, totalcomprobante, bonificacioncomprobante,
@@ -152,24 +168,29 @@ const saveInvoiceStock = async (req, res) => {
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
       );
       SELECT idk FROM @newId;`,
-      {
-        type: sql.QueryTypes.SELECT,
-        replacements: {
-          nextIdComprobante,
-          tipo: tipoSql,
-          prefijo: prefijoSql,
-          numero: numeroSql,
-          fecha: comprobante.fecha,
-          total: comprobante.total,
-          bonificacion: comprobante.bonificacion,
-          idproveedor,
-          idlocal,
-          iddeposito,
-        },
-        transaction: t,
-      }
+        {
+          type: sql.QueryTypes.SELECT,
+          replacements: {
+            nextIdComprobante,
+            tipo: tipoSql,
+            prefijo: prefijoSql,
+            numero: numeroSql,
+            fecha: comprobante.fecha,
+            total: comprobante.total,
+            bonificacion: comprobante.bonificacion,
+            idproveedor,
+            idlocal,
+            iddeposito,
+          },
+          transaction: t,
+        }
+      )
     );
-    const nextComprobanteIdk = insertedCpb[0].idk;
+    const idkRow = insertedCpb[0];
+    const nextComprobanteIdk = idkRow?.idk ?? idkRow?.IDK;
+    if (nextComprobanteIdk == null) {
+      throw new Error("No se pudo leer idk del comprobante insertado");
+    }
 
     for (const item of items) {
       await sql.query(
