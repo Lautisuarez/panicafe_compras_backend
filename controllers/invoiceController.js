@@ -6,6 +6,9 @@ const {
   insertStockImpuestosFromTemplate,
 } = require("../utils/invoiceStockMssql");
 
+/** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
+const CPB_MAX = { tipocomprobante: 3, prefijocomprobante: 4, numerocomprobante: 8 };
+
 const parseInvoicePdf = async (req, res) => {
   try {
     if (!req.file) {
@@ -114,9 +117,18 @@ const saveInvoiceStock = async (req, res) => {
 
     const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
     const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
+    const tipoSql = String(tipoComprobante).trim().slice(0, CPB_MAX.tipocomprobante);
+    const prefijoSql = String(comprobante.prefijo ?? "")
+      .trim()
+      .slice(0, CPB_MAX.prefijocomprobante);
+    const numeroSql = String(comprobante.numero ?? "")
+      .trim()
+      .slice(0, CPB_MAX.numerocomprobante);
 
     // idk is IDENTITY. OUTPUT without INTO is invalid when the table has triggers;
     // use OUTPUT ... INTO @table to capture the new row id safely.
+    // String widths from MRCCENTRAL: tipocomprobante char(3), prefijocomprobante char(4), numerocomprobante char(8);
+    // fechacomprobante is datetime — bind as date, not varchar.
     const [insertedCpb] = await sql.query(
       `DECLARE @newId TABLE (idk DECIMAL(18, 0));
       INSERT INTO MRCCENTRAL.DBO.StockComprobantes (
@@ -128,7 +140,7 @@ const saveInvoiceStock = async (req, res) => {
       OUTPUT INSERTED.idk INTO @newId
       VALUES (
         :tipo, :prefijo, :numero,
-        :fecha, :total, :bonificacion,
+        TRY_CONVERT(DATE, :fecha, 23), :total, :bonificacion,
         :idproveedor, 'IN', 0,
         :idlocal, :iddeposito, GETDATE(), CONVERT(char(8), GETDATE(), 108)
       );
@@ -136,9 +148,9 @@ const saveInvoiceStock = async (req, res) => {
       {
         type: sql.QueryTypes.SELECT,
         replacements: {
-          tipo: tipoComprobante,
-          prefijo: comprobante.prefijo,
-          numero: comprobante.numero,
+          tipo: tipoSql,
+          prefijo: prefijoSql,
+          numero: numeroSql,
           fecha: comprobante.fecha,
           total: comprobante.total,
           bonificacion: comprobante.bonificacion,
