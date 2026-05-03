@@ -6,7 +6,11 @@ const {
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
   insertStockMovimientoWithTemplate,
+  fetchOpenBalanceIdForLocal,
 } = require("../utils/invoiceStockMssql");
+
+/** Locales allowed in the invoice scanning stock flow (num_local). */
+const INVOICE_STOCK_LOCAL_NUMS = Object.freeze([1, 2, 15, 98]);
 
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
 const CPB_MAX = {
@@ -42,6 +46,33 @@ async function safeRollbackSequelizeTransaction(transaction) {
     throw e;
   }
 }
+
+const getInvoiceStockLocales = async (req, res) => {
+  try {
+    const sql = db.sequelizeInvoiceCatalog;
+    const rows = selectResultRows(
+      await sql.query(
+        `SELECT num_local, RTRIM(nom_local) AS nom_local
+         FROM MRCCENTRAL.dbo.locales
+         WHERE num_local IN (1, 2, 15, 98)
+         ORDER BY num_local`,
+        { type: sql.QueryTypes.SELECT }
+      )
+    );
+    res.json(
+      rows.map((r) => ({
+        id: r.num_local ?? r.NUM_LOCAL,
+        nombre: String(r.nom_local ?? r.NOM_LOCAL ?? "").trim(),
+      }))
+    );
+  } catch (error) {
+    console.error("Error listando locales para facturas:", error);
+    if (error.code === "SQL_DISABLED") {
+      return res.status(503).json({ mensaje: "SQL Server no configurado." });
+    }
+    res.status(500).json({ mensaje: "Error al obtener locales" });
+  }
+};
 
 const parseInvoicePdf = async (req, res) => {
   try {
@@ -135,19 +166,30 @@ const saveInvoiceStock = async (req, res) => {
   const sql = db.sequelizeInvoiceCatalog;
   const t = await sql.transaction();
   try {
-    const { comprobante, idproveedor = 0, idlocal = 1, iddeposito = 1, items, totales } = req.body;
+    const { comprobante, idproveedor = 0, idlocal: idlocalRaw, iddeposito = 1, items, totales } =
+      req.body;
 
     if (!comprobante || !Array.isArray(items) || items.length === 0) {
       await safeRollbackSequelizeTransaction(t);
       return res.status(400).json({ mensaje: "Se requiere comprobante e items" });
     }
 
+    const idlocalNum = Number(idlocalRaw);
+    if (!Number.isFinite(idlocalNum) || !INVOICE_STOCK_LOCAL_NUMS.includes(idlocalNum)) {
+      await safeRollbackSequelizeTransaction(t);
+      return res.status(400).json({
+        mensaje: "El local de destino no es valido para ingreso por factura.",
+      });
+    }
+
     await assertInvoiceStockReferences(sql, t, {
-      idlocal,
+      idlocal: idlocalNum,
       iddeposito,
       idproveedor,
       articuloCodigos: items.map((it) => it.articuloCodigo),
     });
+
+    const idbalance = await fetchOpenBalanceIdForLocal(sql, t, idlocalNum);
 
     const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
     const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
@@ -179,8 +221,9 @@ const saveInvoiceStock = async (req, res) => {
       nextIdComprobante,
       comprobante,
       idproveedor,
-      idlocal,
+      idlocal: idlocalNum,
       iddeposito,
+      idbalance,
       tipoSql,
       prefijoSql,
       numeroSql,
@@ -216,6 +259,7 @@ const saveInvoiceStock = async (req, res) => {
 };
 
 module.exports = {
+  getInvoiceStockLocales,
   parseInvoicePdf,
   matchInvoiceItems,
   saveInvoiceStock,

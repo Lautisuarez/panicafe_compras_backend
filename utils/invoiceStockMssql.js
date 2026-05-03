@@ -14,6 +14,41 @@ const padCodeVariants = (articuloCodigo) => {
 };
 
 /**
+ * Open balance for stock IN: same idlocal as num_local in locales / request body.
+ * @returns {Promise<number>}
+ */
+async function fetchOpenBalanceIdForLocal(sql, t, idlocal) {
+  const rows = unwrapSelect(
+    await sql.query(
+      `SELECT TOP 1 idbalance
+       FROM MRCCENTRAL.dbo.balance
+       WHERE idlocal = :idlocal AND cerrado = 0
+       ORDER BY idbalance DESC`,
+      {
+        type: sql.QueryTypes.SELECT,
+        transaction: t,
+        replacements: { idlocal },
+      }
+    )
+  );
+  if (!rows.length) {
+    const e = new Error(
+      `No hay balance abierto (cerrado = 0) para el local ${idlocal}.`
+    );
+    e.statusCode = 400;
+    throw e;
+  }
+  const raw = rows[0];
+  const idb = raw.idbalance ?? raw.IDBALANCE;
+  if (idb == null) {
+    const e = new Error("La consulta de balance no devolvió idbalance.");
+    e.statusCode = 500;
+    throw e;
+  }
+  return Number(idb);
+}
+
+/**
  * @param {import('sequelize').Sequelize} sql sequelizeInvoiceCatalog
  * @param {import('sequelize').Transaction} t
  * @param {number} idlocal
@@ -183,6 +218,7 @@ async function insertStockComprobanteWithTemplate(
     idproveedor,
     idlocal,
     iddeposito,
+    idbalance,
     tipoSql,
     prefijoSql,
     numeroSql,
@@ -242,6 +278,15 @@ async function insertStockComprobanteWithTemplate(
   setRowColCaseInsensitive(row, "anulado", 0);
   setRowColCaseInsensitive(row, "idlocal", idlocal);
   setRowColCaseInsensitive(row, "iddeposito", iddeposito);
+  if (idbalance != null && Number.isFinite(Number(idbalance))) {
+    const bal = Number(idbalance);
+    const balKey = Object.keys(row).find((k) => k.toLowerCase() === "idbalance");
+    if (balKey) {
+      row[balKey] = bal;
+    } else {
+      row.idbalance = bal;
+    }
+  }
   setRowColCaseInsensitive(row, "fechamovimiento", new Date());
   setRowColCaseInsensitive(row, "horamovimiento", horaMovimientoNow());
   setRowColCaseInsensitive(row, "observaciones", observacionesSql);
@@ -454,6 +499,7 @@ async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales)
 module.exports = {
   toNum,
   assertInvoiceStockReferences,
+  fetchOpenBalanceIdForLocal,
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
   insertStockMovimientoWithTemplate,

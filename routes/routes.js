@@ -351,6 +351,7 @@ router.post('/mispedidosdetalle', middlewares.checkJWT, controllers.misPedidosDe
 
 const invoiceAuth = [middlewares.checkJWT, middlewares.checkIfAdmin1Or4JWT];
 router.get('/productos/search', ...invoiceAuth, controllers.searchProductos);
+router.get('/facturas/locales', ...invoiceAuth, controllers.getInvoiceStockLocales);
 router.post('/facturas/parse', ...invoiceAuth, upload.single('file'), controllers.parseInvoicePdf);
 router.post('/facturas/match', ...invoiceAuth, controllers.matchInvoiceItems);
 router.post('/facturas/stock', ...invoiceAuth, controllers.saveInvoiceStock);

@@ -212,8 +212,14 @@ function parseItems(section, result) {
     if (ivaPercentMatch) {
       const afterPercentStart = ivaPercentMatch.index + ivaPercentMatch[0].length;
       const afterPercent = remainingText.substring(afterPercentStart);
-      const finalAmountMatch = afterPercent.match(/^([\d.,]+)/);
-      itemEnd = afterUnitStart + afterPercentStart + (finalAmountMatch ? finalAmountMatch[0].length : 0);
+      const leadingWsLen = afterPercent.length - afterPercent.trimStart().length;
+      const afterPercentStripped = afterPercent.trimStart();
+      const finalAmountMatch = afterPercentStripped.match(/^([\d.,]+)/);
+      itemEnd =
+        afterUnitStart +
+        afterPercentStart +
+        leadingWsLen +
+        (finalAmountMatch ? finalAmountMatch[0].length : 0);
     } else {
       itemEnd = fullText.length;
     }
@@ -226,40 +232,32 @@ function parseItems(section, result) {
     const alicuotaMatch = afterUnit.match(/(10[.,]5|2[.,]5|27|21|5|0)%/);
 
     const precioUnitario = amounts[0] || "";
-    const bonificacion = amounts[1] || "";
-    const subtotal = amounts[2] || "";
+    let bonificacion = "";
+    let subtotal = "";
+    let subtotalConIva = "";
+    if (amounts.length >= 4) {
+      bonificacion = amounts[1] || "";
+      subtotal = amounts[2] || "";
+      subtotalConIva = amounts[3] || "";
+    } else if (amounts.length === 3) {
+      subtotal = amounts[1] || "";
+      subtotalConIva = amounts[2] || "";
+    } else if (amounts.length === 2) {
+      subtotal = amounts[1] || "";
+    }
     const alicuotaIva = alicuotaMatch ? alicuotaMatch[1] + "%" : "";
-    const subtotalConIva = amounts[3] || "";
-
-    // Split product name from quantity using cross-validation:
-    // cantidad = subtotal / precioUnitario, then find that number in the beforeUnit text
-    let producto = beforeUnit;
-    let cantidad = "";
 
     const precioNum = parseArgNumber(precioUnitario);
     const subtotalNum = parseArgNumber(subtotal);
+    const bonifNum = parseArgNumber(bonificacion);
+    const factor = bonifNum > 0 ? 1 - bonifNum / 100 : 1;
 
-    if (precioNum > 0 && subtotalNum > 0) {
-      const bonifNum = parseArgNumber(bonificacion);
-      const factor = bonifNum > 0 ? (1 - bonifNum / 100) : 1;
-      const expectedCant = subtotalNum / (precioNum * factor);
-      const cantStr = formatArgNumber(expectedCant);
-
-      const cantIdx = beforeUnit.lastIndexOf(cantStr);
-      if (cantIdx > 0) {
-        producto = beforeUnit.substring(0, cantIdx).trim();
-        cantidad = cantStr;
-      }
-    }
-
-    // Fallback: if cross-validation didn't split, try finding the last decimal number
-    if (!cantidad) {
-      const cantFallback = beforeUnit.match(/^(.*\D)(\d+,\d{2})$/);
-      if (cantFallback) {
-        producto = cantFallback[1].trim();
-        cantidad = cantFallback[2];
-      }
-    }
+    const { producto, cantidad } = splitProductoCantidad(
+      beforeUnit,
+      precioNum,
+      subtotalNum,
+      factor
+    );
 
     result.items.push({
       producto,
@@ -286,6 +284,70 @@ function parseArgNumber(str) {
 
 function formatArgNumber(num) {
   return num.toFixed(2).replace(".", ",");
+}
+
+/** Strings to match quantity before the unit word (PDFs may use "12" or "12,00"). */
+function quantityMatchVariants(expectedCant) {
+  if (!Number.isFinite(expectedCant) || expectedCant <= 0) return [];
+  const out = [];
+  const s2 = formatArgNumber(expectedCant);
+  out.push(s2);
+  const rounded = Math.round(expectedCant);
+  if (Math.abs(expectedCant - rounded) < 1e-4) {
+    out.push(String(rounded));
+    out.push(formatArgNumber(rounded));
+  }
+  return [...new Set(out)];
+}
+
+function charAtBoundaryOk(beforeUnit, start, len) {
+  const prev = start > 0 ? beforeUnit[start - 1] : " ";
+  const next = start + len < beforeUnit.length ? beforeUnit[start + len] : "";
+  const prevOk = !/\d/.test(prev);
+  const nextOk = !next || !/\d/.test(next);
+  return prevOk && nextOk;
+}
+
+function splitProductoCantidad(beforeUnit, precioNum, subtotalNum, bonifFactor) {
+  let producto = beforeUnit;
+  let cantidad = "";
+
+  if (precioNum > 0 && subtotalNum > 0) {
+    const expectedCant = subtotalNum / (precioNum * bonifFactor);
+    for (const variant of quantityMatchVariants(expectedCant)) {
+      let idx = beforeUnit.lastIndexOf(variant);
+      while (idx >= 0) {
+        if (charAtBoundaryOk(beforeUnit, idx, variant.length)) {
+          producto = beforeUnit.substring(0, idx).trim();
+          cantidad = variant.includes(",")
+            ? variant
+            : formatArgNumber(parseInt(variant, 10));
+          return { producto, cantidad };
+        }
+        idx = beforeUnit.lastIndexOf(variant, idx - 1);
+      }
+    }
+  }
+
+  const intTail = beforeUnit.match(/^(.+?)\s+(\d+)\s*$/);
+  if (intTail && precioNum > 0 && subtotalNum > 0) {
+    const q = parseInt(intTail[2], 10);
+    const expectedCant = subtotalNum / (precioNum * bonifFactor);
+    if (Math.abs(q - expectedCant) < 0.08 || Math.abs(q - Math.round(expectedCant)) < 0.08) {
+      producto = intTail[1].trim();
+      cantidad = formatArgNumber(q);
+      return { producto, cantidad };
+    }
+  }
+
+  const decTail = beforeUnit.match(/^([\s\S]*\D|^)(\d+,\d{2})\s*$/);
+  if (decTail) {
+    producto = decTail[1].trim();
+    cantidad = decTail[2];
+    return { producto, cantidad };
+  }
+
+  return { producto, cantidad };
 }
 
 module.exports = parseInvoiceText;
