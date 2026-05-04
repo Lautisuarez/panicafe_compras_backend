@@ -312,8 +312,10 @@ function splitProductoCantidad(beforeUnit, precioNum, subtotalNum, bonifFactor) 
   let producto = beforeUnit;
   let cantidad = "";
 
+  const bonifF = bonifFactor > 0 ? bonifFactor : 1;
+
   if (precioNum > 0 && subtotalNum > 0) {
-    const expectedCant = subtotalNum / (precioNum * bonifFactor);
+    const expectedCant = subtotalNum / (precioNum * bonifF);
     for (const variant of quantityMatchVariants(expectedCant)) {
       let idx = beforeUnit.lastIndexOf(variant);
       while (idx >= 0) {
@@ -327,12 +329,34 @@ function splitProductoCantidad(beforeUnit, precioNum, subtotalNum, bonifFactor) 
         idx = beforeUnit.lastIndexOf(variant, idx - 1);
       }
     }
+
+    // Glued qty after product/code: "...50020,00 unidades" where math says qty is 20,00 (no space before qty).
+    const cantStr = formatArgNumber(expectedCant);
+    if (cantStr && beforeUnit.endsWith(cantStr)) {
+      producto = beforeUnit.substring(0, beforeUnit.length - cantStr.length).trim();
+      cantidad = cantStr;
+      return { producto, cantidad };
+    }
+
+    const rounded = Math.round(expectedCant);
+    if (Math.abs(expectedCant - rounded) < 1e-4) {
+      const intStr = String(rounded);
+      if (beforeUnit.endsWith(intStr)) {
+        const cut = beforeUnit.length - intStr.length;
+        const prev = cut > 0 ? beforeUnit[cut - 1] : "";
+        if (!/\d/.test(prev)) {
+          producto = beforeUnit.substring(0, cut).trim();
+          cantidad = formatArgNumber(rounded);
+          return { producto, cantidad };
+        }
+      }
+    }
   }
 
   const intTail = beforeUnit.match(/^(.+?)\s+(\d+)\s*$/);
   if (intTail && precioNum > 0 && subtotalNum > 0) {
     const q = parseInt(intTail[2], 10);
-    const expectedCant = subtotalNum / (precioNum * bonifFactor);
+    const expectedCant = subtotalNum / (precioNum * bonifF);
     if (Math.abs(q - expectedCant) < 0.08 || Math.abs(q - Math.round(expectedCant)) < 0.08) {
       producto = intTail[1].trim();
       cantidad = formatArgNumber(q);
@@ -342,9 +366,20 @@ function splitProductoCantidad(beforeUnit, precioNum, subtotalNum, bonifFactor) 
 
   const decTail = beforeUnit.match(/^([\s\S]*\D|^)(\d+,\d{2})\s*$/);
   if (decTail) {
-    producto = decTail[1].trim();
-    cantidad = decTail[2];
-    return { producto, cantidad };
+    const candidateNum = parseArgNumber(decTail[2]);
+    if (precioNum > 0 && subtotalNum > 0) {
+      const expectedCant = subtotalNum / (precioNum * bonifF);
+      const tol = Math.max(0.02 * Math.abs(expectedCant), 0.05);
+      if (Math.abs(candidateNum - expectedCant) <= tol) {
+        producto = decTail[1].trim();
+        cantidad = decTail[2];
+        return { producto, cantidad };
+      }
+    } else {
+      producto = decTail[1].trim();
+      cantidad = decTail[2];
+      return { producto, cantidad };
+    }
   }
 
   return { producto, cantidad };
