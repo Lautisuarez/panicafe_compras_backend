@@ -3,11 +3,31 @@ const pdfParse = require("pdf-parse");
 const parseInvoiceText = require("../utils/invoiceParser");
 const {
   assertInvoiceStockReferences,
+  assertNoDuplicateInvoice,
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
   insertStockMovimientoWithTemplate,
   fetchOpenBalanceIdForLocal,
+  findIdProveedorByCuit,
 } = require("../utils/invoiceStockMssql");
+
+/** Marker recorded in StockComprobantes.observaciones for invoices ingested via the scanner flow. */
+const SCANNED_INVOICE_OBSERVATION = "SCANEADA";
+
+/**
+ * Right-align legacy `prefijocomprobante` (char(4)) from a 5-digit AFIP "Punto de Venta"
+ * (e.g. "00001"). Truncating from the left would erase the only meaningful digit.
+ */
+function buildPrefijoForLegacyDb(rawPrefijo, maxLen) {
+  const digits = String(rawPrefijo ?? "").trim();
+  if (!digits) {
+    return "".padStart(maxLen, "0");
+  }
+  if (digits.length > maxLen) {
+    return digits.slice(-maxLen);
+  }
+  return digits.padStart(maxLen, "0");
+}
 
 /** Locales allowed in the invoice scanning stock flow (num_local). */
 const INVOICE_STOCK_LOCAL_NUMS = Object.freeze([1, 2, 15, 98]);
@@ -166,8 +186,15 @@ const saveInvoiceStock = async (req, res) => {
   const sql = db.sequelizeInvoiceCatalog;
   const t = await sql.transaction();
   try {
-    const { comprobante, idproveedor = 0, idlocal: idlocalRaw, iddeposito = 1, items, totales } =
-      req.body;
+    const {
+      comprobante,
+      idproveedor: idproveedorRaw = 0,
+      cuitProveedor,
+      idlocal: idlocalRaw,
+      iddeposito = 1,
+      items,
+      totales,
+    } = req.body;
 
     if (!comprobante || !Array.isArray(items) || items.length === 0) {
       await safeRollbackSequelizeTransaction(t);
@@ -182,6 +209,11 @@ const saveInvoiceStock = async (req, res) => {
       });
     }
 
+    let idproveedor = Number(idproveedorRaw) || 0;
+    if (idproveedor <= 0) {
+      idproveedor = await findIdProveedorByCuit(sql, t, cuitProveedor);
+    }
+
     await assertInvoiceStockReferences(sql, t, {
       idlocal: idlocalNum,
       iddeposito,
@@ -194,15 +226,30 @@ const saveInvoiceStock = async (req, res) => {
     const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
     const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
     const tipoSql = String(tipoComprobante).trim().slice(0, CPB_MAX.tipocomprobante);
-    const prefijoSql = String(comprobante.prefijo ?? "")
-      .trim()
-      .slice(0, CPB_MAX.prefijocomprobante);
+    // Right-align prefix to the legacy char(4) column: AFIP "Punto de Venta" is 5 digits
+    // (e.g. "00001") and `slice(0, 4)` would drop the only meaningful digit.
+    const prefijoSql = buildPrefijoForLegacyDb(
+      comprobante.prefijo,
+      CPB_MAX.prefijocomprobante
+    );
     const numeroSql = String(comprobante.numero ?? "")
       .trim()
       .slice(0, CPB_MAX.numerocomprobante);
-    const observacionesSql = String(comprobante.observaciones ?? "")
-      .trim()
-      .slice(0, CPB_MAX.observaciones);
+    const userObs = String(comprobante.observaciones ?? "").trim();
+    const observacionesSql = (
+      userObs
+        ? userObs.includes(SCANNED_INVOICE_OBSERVATION)
+          ? userObs
+          : `${userObs} ${SCANNED_INVOICE_OBSERVATION}`
+        : SCANNED_INVOICE_OBSERVATION
+    ).slice(0, CPB_MAX.observaciones);
+
+    await assertNoDuplicateInvoice(sql, t, {
+      tipoSql,
+      prefijoSql,
+      numeroSql,
+      idproveedor,
+    });
 
     const nextIdCpbRow = selectResultRows(
       await sql.query(
@@ -244,10 +291,14 @@ const saveInvoiceStock = async (req, res) => {
       mensaje: "Stock registrado correctamente",
       comprobanteIdk: nextComprobanteIdk,
       movimientos: items.length,
+      idproveedor,
     });
   } catch (error) {
     await safeRollbackSequelizeTransaction(t);
     console.error("Error guardando stock:", error);
+    if (error.statusCode === 409) {
+      return res.status(409).json({ mensaje: error.message || "Factura duplicada" });
+    }
     if (error.statusCode === 400) {
       return res.status(400).json({ mensaje: error.message || "Solicitud invalida" });
     }

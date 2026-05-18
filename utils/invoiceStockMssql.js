@@ -86,13 +86,15 @@ async function assertInvoiceStockReferences(
   }
 
   if (idproveedor > 0) {
+    // StockComprobantes.idproveedor references proveed.pr_codigo (not id / idk).
     const pr = await sql.query(
-      `SELECT 1 AS ok FROM MRCCENTRAL.dbo.proveed WHERE id = :p OR idk = :p`,
+      `SELECT 1 AS ok FROM MRCCENTRAL.dbo.proveed
+       WHERE pr_codigo = :p AND ISNULL(inhabilitado, 0) = 0 AND ISNULL(anulado, 0) = 0`,
       { type: sql.QueryTypes.SELECT, transaction: t, replacements: { p: idproveedor } }
     );
     if (pr.length === 0) {
       throw err(
-        `idproveedor ${idproveedor} does not exist in MRCCENTRAL.dbo.proveed (id / idk).`
+        `idproveedor ${idproveedor} does not exist or is disabled in MRCCENTRAL.dbo.proveed (pr_codigo).`
       );
     }
   }
@@ -118,6 +120,82 @@ async function assertInvoiceStockReferences(
         `ARTICULO not found (visible) for codigo like "${cod}" in this database.`
       );
     }
+  }
+}
+
+/**
+ * Resolve `idproveedor` (= proveed.pr_codigo) from emisor CUIT (11 digits).
+ * Returns 0 when the CUIT is invalid or not found.
+ */
+async function findIdProveedorByCuit(sql, t, cuit) {
+  const c = String(cuit ?? "").replace(/\D/g, "");
+  if (c.length !== 11) return 0;
+  const rows = unwrapSelect(
+    await sql.query(
+      `SELECT TOP 1 pr_codigo
+         FROM MRCCENTRAL.dbo.proveed
+        WHERE REPLACE(REPLACE(RTRIM(LTRIM(pr_docu)), '-', ''), ' ', '') = :c
+          AND ISNULL(inhabilitado, 0) = 0
+          AND ISNULL(anulado, 0) = 0
+        ORDER BY pr_codigo`,
+      { type: sql.QueryTypes.SELECT, transaction: t, replacements: { c } }
+    )
+  );
+  if (!rows.length) return 0;
+  const v = Number(rows[0].pr_codigo ?? rows[0].PR_CODIGO ?? 0);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/**
+ * Block re-saving the same invoice (tipo + prefijo + numero, optionally same proveedor)
+ * already present as IN, non-anulado, in StockComprobantes.
+ *
+ * Compares prefijo / numero by integer value to be robust to leading-zero formatting.
+ *
+ * @throws Error with statusCode 409 when a duplicate exists.
+ */
+async function assertNoDuplicateInvoice(
+  sql,
+  t,
+  { tipoSql, prefijoSql, numeroSql, idproveedor }
+) {
+  const prefInt = parseInt(String(prefijoSql).replace(/\D/g, ""), 10);
+  const numInt = parseInt(String(numeroSql).replace(/\D/g, ""), 10);
+  if (!Number.isFinite(prefInt) || !Number.isFinite(numInt)) return;
+
+  const params = {
+    tipo: tipoSql,
+    prefInt,
+    numInt,
+    prov: Number(idproveedor) || 0,
+  };
+
+  // Same supplier (when known) OR fallback: same tipo+prefijo+numero with no supplier.
+  const dupes = unwrapSelect(
+    await sql.query(
+      `SELECT TOP 5 idk, idproveedor, totalcomprobante, fechamovimiento
+         FROM MRCCENTRAL.dbo.StockComprobantes
+        WHERE tipomovimiento = 'IN'
+          AND ISNULL(anulado, 0) = 0
+          AND RTRIM(tipocomprobante) = :tipo
+          AND TRY_CAST(prefijocomprobante AS INT) = :prefInt
+          AND TRY_CAST(numerocomprobante AS INT) = :numInt
+          AND (:prov = 0 OR idproveedor = :prov OR idproveedor = 0)
+        ORDER BY idk DESC`,
+      { type: sql.QueryTypes.SELECT, transaction: t, replacements: params }
+    )
+  );
+
+  if (dupes.length > 0) {
+    const ref = dupes[0];
+    const idkRef = ref.idk ?? ref.IDK;
+    const e = new Error(
+      `Esta factura ya esta registrada (idk ${idkRef}, ${tipoSql} ${String(
+        prefijoSql
+      ).padStart(4, "0")}-${String(numeroSql).padStart(8, "0")}).`
+    );
+    e.statusCode = 409;
+    throw e;
   }
 }
 
@@ -499,7 +577,9 @@ async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales)
 module.exports = {
   toNum,
   assertInvoiceStockReferences,
+  assertNoDuplicateInvoice,
   fetchOpenBalanceIdForLocal,
+  findIdProveedorByCuit,
   insertStockImpuestosFromTemplate,
   insertStockComprobanteWithTemplate,
   insertStockMovimientoWithTemplate,
