@@ -277,9 +277,48 @@ function extractAmount(text, regex) {
   return match ? match[1].trim() : "";
 }
 
+/**
+ * Parse amounts from Argentine invoices (PDF text or user input).
+ * AR: "15.432,50", "5050,00" — dot thousands, comma decimals.
+ * Dot-decimal (common PDF extraction): "5050.00", "122210.00".
+ */
 function parseArgNumber(str) {
-  if (!str) return 0;
-  return parseFloat(str.replace(/\./g, "").replace(",", "."));
+  if (str == null || str === "") return 0;
+  if (typeof str === "number") return Number.isFinite(str) ? str : 0;
+
+  const s = String(str).trim().replace(/\s/g, "");
+  if (!s) return 0;
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    if (s.lastIndexOf(",") > s.lastIndexOf(".")) {
+      return parseFloat(s.replace(/\./g, "").replace(",", ".")) || 0;
+    }
+    return parseFloat(s.replace(/,/g, "")) || 0;
+  }
+
+  if (hasComma) {
+    return parseFloat(s.replace(",", ".")) || 0;
+  }
+
+  if (hasDot) {
+    const parts = s.split(".");
+    if (parts.length === 2) {
+      const fracLen = parts[1].length;
+      if (fracLen === 1 || fracLen === 2) {
+        return parseFloat(s) || 0;
+      }
+      if (fracLen === 3 && parts[0].length <= 3) {
+        return parseFloat(s.replace(/\./g, "")) || 0;
+      }
+      return parseFloat(s) || 0;
+    }
+    return parseFloat(s.replace(/\./g, "")) || 0;
+  }
+
+  return parseFloat(s) || 0;
 }
 
 function formatArgNumber(num) {
