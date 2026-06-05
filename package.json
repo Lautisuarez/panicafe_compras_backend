@@ -28,6 +28,7 @@
   },
   "homepage": "https://gitlab.com/sarnovich/panicafe#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",

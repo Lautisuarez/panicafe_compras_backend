@@ -1,6 +1,7 @@
 const db = require("../db/db");
 const pdfParse = require("pdf-parse");
 const parseInvoiceText = require("../utils/invoiceParser");
+const { parseInvoiceWithAI, InvoiceAIError } = require("../utils/invoiceParserAI");
 const {
   assertInvoiceStockReferences,
   assertNoDuplicateInvoice,
@@ -105,6 +106,35 @@ const parseInvoicePdf = async (req, res) => {
   } catch (error) {
     console.error("Error parseando PDF:", error);
     res.status(500).json({ mensaje: "Error al procesar el PDF" });
+  }
+};
+
+/**
+ * Invoice scanning via Claude. Accepts any PDF (not necessarily AFIP/ARCA)
+ * and returns the same schema as `parseInvoicePdf` so the rest of the wizard
+ * keeps working unchanged.
+ */
+const parseInvoicePdfAI = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ mensaje: "No se recibió ningún archivo" });
+    }
+    const parsed = await parseInvoiceWithAI(req.file.buffer);
+    res.json(parsed);
+  } catch (error) {
+    if (error instanceof InvoiceAIError) {
+      if (error.code === "MISSING_API_KEY") {
+        return res
+          .status(503)
+          .json({ mensaje: "Servicio de IA no configurado en el servidor" });
+      }
+      console.error("InvoiceAIError:", error.code, error.message);
+      return res
+        .status(502)
+        .json({ mensaje: "Error al procesar el PDF con IA: " + error.message });
+    }
+    console.error("Error parseando PDF con IA:", error);
+    res.status(500).json({ mensaje: "Error al procesar el PDF con IA" });
   }
 };
 
@@ -312,6 +342,7 @@ const saveInvoiceStock = async (req, res) => {
 module.exports = {
   getInvoiceStockLocales,
   parseInvoicePdf,
+  parseInvoicePdfAI,
   matchInvoiceItems,
   saveInvoiceStock,
 };

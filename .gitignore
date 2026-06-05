@@ -1,2 +1,7 @@
 node_modules
 .env
+
+# Local prompts / internal docs (do not commit)
+PROMPT_*.md
+*_PROMPT*.md
+modelo_*.pdf

@@ -353,6 +353,7 @@ const invoiceAuth = [middlewares.checkJWT, middlewares.checkIfAdmin1Or4JWT];
 router.get('/productos/search', ...invoiceAuth, controllers.searchProductos);
 router.get('/facturas/locales', ...invoiceAuth, controllers.getInvoiceStockLocales);
 router.post('/facturas/parse', ...invoiceAuth, upload.single('file'), controllers.parseInvoicePdf);
+router.post('/facturas/parse-ai', ...invoiceAuth, upload.single('file'), controllers.parseInvoicePdfAI);
 router.post('/facturas/match', ...invoiceAuth, controllers.matchInvoiceItems);
 router.post('/facturas/stock', ...invoiceAuth, controllers.saveInvoiceStock);
 
