@@ -56,6 +56,13 @@ Creá un archivo `.env` en la raíz del backend (cargado con `dotenv`). Ejemplos
 | `MONGO_HOST` / `MONGO_PORT` / `MONGO_DB` | Si no hay URI explícita |
 | `SKIP_MONGO` | `true` — no conectar a Mongo (algunas funciones de facturas pueden limitarse) |
 
+### Anthropic (escaneo de facturas con IA)
+
+| Variable | Descripción |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | API key de Anthropic. Requerida para el endpoint `POST /facturas/parse-ai` (método "Otras" del escáner). Si no está configurada, el endpoint responde `503`. |
+| `ANTHROPIC_MODEL` | Modelo de Claude a usar para el parseo (default `claude-sonnet-4-5`) |
+
 ### Otros
 
 | Variable | Descripción |
