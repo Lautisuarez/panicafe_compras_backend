@@ -12,10 +12,10 @@
  * `parseArgNumber`.
  */
 
-const Anthropic = require("@anthropic-ai/sdk").default;
+const Anthropic = require("@anthropic-ai/sdk");
 
-const DEFAULT_MODEL = "claude-sonnet-4-5";
-const MAX_TOKENS = 4096;
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+const MAX_TOKENS = 8192;
 const TOOL_NAME = "submit_invoice";
 
 class InvoiceAIError extends Error {
@@ -246,6 +246,12 @@ Reglas de extracción:
 
 Importante: respondé EXCLUSIVAMENTE invocando la herramienta submit_invoice con el objeto extraído. No incluyas texto adicional.`;
 
+let _client = null;
+function getClient(apiKey) {
+  if (!_client) _client = new Anthropic({ apiKey });
+  return _client;
+}
+
 /**
  * Parse an invoice PDF using Claude.
  * @param {Buffer} pdfBuffer Raw PDF bytes (from `multer` memory storage).
@@ -268,7 +274,7 @@ async function parseInvoiceWithAI(pdfBuffer) {
     );
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = getClient(apiKey);
   const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
   const base64Pdf = pdfBuffer.toString("base64");
 

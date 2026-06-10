@@ -131,7 +131,7 @@ const parseInvoicePdfAI = async (req, res) => {
       console.error("InvoiceAIError:", error.code, error.message);
       return res
         .status(502)
-        .json({ mensaje: "Error al procesar el PDF con IA: " + error.message });
+        .json({ mensaje: "Error al procesar el PDF con IA" });
     }
     console.error("Error parseando PDF con IA:", error);
     res.status(500).json({ mensaje: "Error al procesar el PDF con IA" });
