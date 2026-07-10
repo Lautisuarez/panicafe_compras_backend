@@ -33,6 +33,44 @@ function buildPrefijoForLegacyDb(rawPrefijo, maxLen) {
 /** Locales allowed in the invoice scanning stock flow (num_local). */
 const INVOICE_STOCK_LOCAL_NUMS = Object.freeze([1, 2, 15, 98]);
 
+/**
+ * Codigo AFIP del comprobante -> [claseDocumento, letra].
+ * Ref AFIP: 01/06/11 Factura, 02/07/12 Nota de Debito, 03/08/13 Nota de Credito.
+ */
+const AFIP_CODE_MAP = Object.freeze({
+  1: ["FC", "A"], 6: ["FC", "B"], 11: ["FC", "C"],
+  2: ["ND", "A"], 7: ["ND", "B"], 12: ["ND", "C"],
+  3: ["NC", "A"], 8: ["NC", "B"], 13: ["NC", "C"],
+});
+
+/**
+ * Prefijo legacy en MRCCENTRAL.dbo.StockComprobantes.tipocomprobante (char(3) = prefijo + letra).
+ * FC confirmado (FCA/FCB/FCC). NC/ND PENDIENTE de confirmar contra la base real
+ * (ver consulta de descubrimiento); ajustar aca si difiere.
+ */
+const LEGACY_CPB_PREFIX = Object.freeze({ FC: "FC", NC: "NC", ND: "ND" });
+
+/**
+ * Resuelve el `tipocomprobante` legacy a partir del comprobante escaneado.
+ * Prioriza el codigo AFIP (unico dato que distingue FC de NC/ND); si falta,
+ * cae al comportamiento previo (factura por letra) para no romper el flujo actual.
+ */
+function resolveTipoComprobante(comprobante) {
+  const letterRaw = String(comprobante?.tipo || "").trim().toUpperCase();
+  const codeNum = parseInt(
+    String(comprobante?.codigo || "").replace(/\D/g, ""),
+    10
+  );
+  const mapped = AFIP_CODE_MAP[codeNum];
+  const docClass = mapped ? mapped[0] : "FC";
+  const letter = ["A", "B", "C"].includes(letterRaw)
+    ? letterRaw
+    : mapped
+      ? mapped[1]
+      : "A";
+  return `${LEGACY_CPB_PREFIX[docClass] || "FC"}${letter}`;
+}
+
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
 const CPB_MAX = {
   tipocomprobante: 3,
@@ -263,8 +301,7 @@ const saveInvoiceStock = async (req, res) => {
 
     const idbalance = await fetchOpenBalanceIdForLocal(sql, t, idlocalNum);
 
-    const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
-    const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
+    const tipoComprobante = resolveTipoComprobante(comprobante);
     const tipoSql = String(tipoComprobante).trim().slice(0, CPB_MAX.tipocomprobante);
     // Right-align prefix to the legacy char(4) column: AFIP "Punto de Venta" is 5 digits
     // (e.g. "00001") and `slice(0, 4)` would drop the only meaningful digit.
