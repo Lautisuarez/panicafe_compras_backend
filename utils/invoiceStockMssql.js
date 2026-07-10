@@ -498,13 +498,19 @@ async function insertStockMovimientoWithTemplate(sql, t, { comprobanteIdk, item 
   );
 }
 
-/** Clone STOCKIMPUESTOS from latest IN (FCA/FCB/FCC) row; fill net/IVA from `totales`. */
+/**
+ * Clone STOCKIMPUESTOS from latest IN (FCA/FCB/FCC) row to reuse its column shape,
+ * then rebuild the tax detail from `totales`.
+ *
+ * IMPORTANTE: la plantilla se clona SOLO por su estructura; sus importes son de
+ * otra factura. Hay que reescribir todos los subdiarios (incluido el 24 =
+ * "TOTAL COMPROBANTE"), si no la nueva factura hereda importes ajenos y el total
+ * se recalcula mal al editar en mrcomanda.
+ */
 async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales) {
   const tNum = toNum(totales?.total);
   const nNum = toNum(totales?.netoGravado);
-  const iNum = toNum(totales?.iva21);
   if (tNum == null || tNum <= 0) return;
-  if (nNum == null && iNum == null) return;
 
   const [tpl] = await sql.query(
     `SELECT TOP 1 s.*
@@ -538,16 +544,43 @@ async function insertStockImpuestosFromTemplate(sql, t, comprobanteIdk, totales)
     }
   }
 
-  if (nNum != null && nNum >= 0) {
-    setRowColCaseInsensitive(row, "IMPORTESUBDIARIO1", nNum);
-    setRowColCaseInsensitive(row, "PORCENTAJESUBDIARIO1", 0);
-    setRowColCaseInsensitive(row, "DESCRIPCIONSUBDIARIO1", "NETO GRAVADO");
+  // Limpiar los 23 subdiarios de detalle heredados de la plantilla (importes de
+  // otra factura). El 24 se reescribe aparte con el TOTAL real de esta factura.
+  for (let i = 1; i <= 23; i++) {
+    setRowColCaseInsensitive(row, `IMPORTESUBDIARIO${i}`, 0);
+    setRowColCaseInsensitive(row, `PORCENTAJESUBDIARIO${i}`, 0);
+    setRowColCaseInsensitive(row, `DESCRIPCIONSUBDIARIO${i}`, "");
   }
-  if (iNum != null && iNum >= 0) {
-    setRowColCaseInsensitive(row, "IMPORTESUBDIARIO2", iNum);
-    setRowColCaseInsensitive(row, "PORCENTAJESUBDIARIO2", 21);
-    setRowColCaseInsensitive(row, "DESCRIPCIONSUBDIARIO2", "IVA INSCRIPTO");
+
+  // Subdiario 1: neto gravado.
+  setRowColCaseInsensitive(row, "IMPORTESUBDIARIO1", nNum != null && nNum >= 0 ? nNum : 0);
+  setRowColCaseInsensitive(row, "PORCENTAJESUBDIARIO1", 0);
+  setRowColCaseInsensitive(row, "DESCRIPCIONSUBDIARIO1", "NETO GRAVADO");
+
+  // Subdiarios 2..N: un renglon "IVA INSCRIPTO" por cada alicuota presente
+  // (mismo patron que las cargas manuales de mrcomanda). Antes solo se guardaba
+  // el 21%, por lo que las facturas con otras alicuotas quedaban sin IVA.
+  const ivaBuckets = [
+    [27, toNum(totales?.iva27)],
+    [21, toNum(totales?.iva21)],
+    [10.5, toNum(totales?.iva105)],
+    [5, toNum(totales?.iva5)],
+    [2.5, toNum(totales?.iva25)],
+  ];
+  let slot = 2;
+  for (const [pct, imp] of ivaBuckets) {
+    if (imp != null && imp > 0 && slot <= 23) {
+      setRowColCaseInsensitive(row, `IMPORTESUBDIARIO${slot}`, imp);
+      setRowColCaseInsensitive(row, `PORCENTAJESUBDIARIO${slot}`, pct);
+      setRowColCaseInsensitive(row, `DESCRIPCIONSUBDIARIO${slot}`, "IVA INSCRIPTO");
+      slot++;
+    }
   }
+
+  // Subdiario 24: TOTAL COMPROBANTE con el importe real de esta factura.
+  setRowColCaseInsensitive(row, "IMPORTESUBDIARIO24", tNum);
+  setRowColCaseInsensitive(row, "PORCENTAJESUBDIARIO24", 0);
+  setRowColCaseInsensitive(row, "DESCRIPCIONSUBDIARIO24", "TOTAL COMPROBANTE");
 
   const idKey = Object.keys(row).find(
     (k) => k.length === 2 && k.toLowerCase() === "id"
