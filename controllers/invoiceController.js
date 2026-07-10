@@ -244,6 +244,16 @@ const saveInvoiceStock = async (req, res) => {
       idproveedor = await findIdProveedorByCuit(sql, t, cuitProveedor);
     }
 
+    // El proveedor es obligatorio: sin el (idproveedor = 0) la factura se
+    // registraria sin vincular al emisor y quedaria mal cargada.
+    if (idproveedor <= 0) {
+      await safeRollbackSequelizeTransaction(t);
+      return res.status(400).json({
+        mensaje:
+          "No se pudo identificar al proveedor. Verifica el CUIT del emisor: debe tener 11 digitos y corresponder a un proveedor habilitado.",
+      });
+    }
+
     await assertInvoiceStockReferences(sql, t, {
       idlocal: idlocalNum,
       iddeposito,
