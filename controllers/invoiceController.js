@@ -79,6 +79,39 @@ const CPB_MAX = {
   observaciones: 200,
 };
 
+/** Tolerancia de reconciliacion de linea: 1% del subtotal, minimo $1 (redondeos). */
+const RECONCILIACION_TOLERANCIA_PCT = 0.01;
+
+/**
+ * Toda linea de factura cumple: cantidad x precio (neto de bonificacion) = subtotal.
+ * Si se ajusta la cantidad a la unidad del producto sin ajustar el precio, la linea
+ * queda valorizada mal (ej. "360 unidades x $28.650 por cajon" = $10,3M cuando la
+ * factura dice $42.975). Items sin `subtotalFactura` no se validan (compatibilidad).
+ *
+ * @returns {null|string} null si todas cierran; el mensaje de error si alguna no.
+ */
+function findItemReconciliationError(items) {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const subtotal = Number(it.subtotalFactura);
+    if (!Number.isFinite(subtotal) || subtotal <= 0) continue;
+    const cantidad = Number(it.cantidad) || 0;
+    const precio = Number(it.precio) || 0;
+    const bonif = Number(it.bonificacion) || 0;
+    const factor = bonif > 0 ? 1 - bonif / 100 : 1;
+    const esperado = cantidad * precio * factor;
+    const tolerancia = Math.max(subtotal * RECONCILIACION_TOLERANCIA_PCT, 1);
+    if (Math.abs(esperado - subtotal) > tolerancia) {
+      return (
+        `Item ${i + 1}: cantidad x precio da ${esperado.toFixed(2)} pero el subtotal ` +
+        `de la factura es ${subtotal.toFixed(2)}. Revisa la cantidad y el precio unitario ` +
+        "(las unidades de la factura y del producto deben coincidir)."
+      );
+    }
+  }
+  return null;
+}
+
 /** Sequelize SELECT: sometimes `[rows]`, sometimes `[rows, metadata]` — return `rows` only. */
 function selectResultRows(result) {
   if (result == null) return [];
@@ -267,6 +300,12 @@ const saveInvoiceStock = async (req, res) => {
     if (!comprobante || !Array.isArray(items) || items.length === 0) {
       await safeRollbackSequelizeTransaction(t);
       return res.status(400).json({ mensaje: "Se requiere comprobante e items" });
+    }
+
+    const reconciliacionError = findItemReconciliationError(items);
+    if (reconciliacionError) {
+      await safeRollbackSequelizeTransaction(t);
+      return res.status(400).json({ mensaje: reconciliacionError });
     }
 
     const idlocalNum = Number(idlocalRaw);
