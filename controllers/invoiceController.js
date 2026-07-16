@@ -33,6 +33,44 @@ function buildPrefijoForLegacyDb(rawPrefijo, maxLen) {
 /** Locales allowed in the invoice scanning stock flow (num_local). */
 const INVOICE_STOCK_LOCAL_NUMS = Object.freeze([1, 2, 15, 98]);
 
+/**
+ * Codigo AFIP del comprobante -> [claseDocumento, letra].
+ * Ref AFIP: 01/06/11 Factura, 02/07/12 Nota de Debito, 03/08/13 Nota de Credito.
+ */
+const AFIP_CODE_MAP = Object.freeze({
+  1: ["FC", "A"], 6: ["FC", "B"], 11: ["FC", "C"],
+  2: ["ND", "A"], 7: ["ND", "B"], 12: ["ND", "C"],
+  3: ["NC", "A"], 8: ["NC", "B"], 13: ["NC", "C"],
+});
+
+/**
+ * Prefijo legacy en MRCCENTRAL.dbo.StockComprobantes.tipocomprobante (char(3) = prefijo + letra).
+ * FC confirmado (FCA/FCB/FCC). NC/ND PENDIENTE de confirmar contra la base real
+ * (ver consulta de descubrimiento); ajustar aca si difiere.
+ */
+const LEGACY_CPB_PREFIX = Object.freeze({ FC: "FC", NC: "NC", ND: "ND" });
+
+/**
+ * Resuelve el `tipocomprobante` legacy a partir del comprobante escaneado.
+ * Prioriza el codigo AFIP (unico dato que distingue FC de NC/ND); si falta,
+ * cae al comportamiento previo (factura por letra) para no romper el flujo actual.
+ */
+function resolveTipoComprobante(comprobante) {
+  const letterRaw = String(comprobante?.tipo || "").trim().toUpperCase();
+  const codeNum = parseInt(
+    String(comprobante?.codigo || "").replace(/\D/g, ""),
+    10
+  );
+  const mapped = AFIP_CODE_MAP[codeNum];
+  const docClass = mapped ? mapped[0] : "FC";
+  const letter = ["A", "B", "C"].includes(letterRaw)
+    ? letterRaw
+    : mapped
+      ? mapped[1]
+      : "A";
+  return `${LEGACY_CPB_PREFIX[docClass] || "FC"}${letter}`;
+}
+
 /** Legacy StockComprobantes string widths — trim to avoid error 8152 (truncation). */
 const CPB_MAX = {
   tipocomprobante: 3,
@@ -40,6 +78,39 @@ const CPB_MAX = {
   numerocomprobante: 8,
   observaciones: 200,
 };
+
+/** Tolerancia de reconciliacion de linea: 1% del subtotal, minimo $1 (redondeos). */
+const RECONCILIACION_TOLERANCIA_PCT = 0.01;
+
+/**
+ * Toda linea de factura cumple: cantidad x precio (neto de bonificacion) = subtotal.
+ * Si se ajusta la cantidad a la unidad del producto sin ajustar el precio, la linea
+ * queda valorizada mal (ej. "360 unidades x $28.650 por cajon" = $10,3M cuando la
+ * factura dice $42.975). Items sin `subtotalFactura` no se validan (compatibilidad).
+ *
+ * @returns {null|string} null si todas cierran; el mensaje de error si alguna no.
+ */
+function findItemReconciliationError(items) {
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+    const subtotal = Number(it.subtotalFactura);
+    if (!Number.isFinite(subtotal) || subtotal <= 0) continue;
+    const cantidad = Number(it.cantidad) || 0;
+    const precio = Number(it.precio) || 0;
+    const bonif = Number(it.bonificacion) || 0;
+    const factor = bonif > 0 ? 1 - bonif / 100 : 1;
+    const esperado = cantidad * precio * factor;
+    const tolerancia = Math.max(subtotal * RECONCILIACION_TOLERANCIA_PCT, 1);
+    if (Math.abs(esperado - subtotal) > tolerancia) {
+      return (
+        `Item ${i + 1}: cantidad x precio da ${esperado.toFixed(2)} pero el subtotal ` +
+        `de la factura es ${subtotal.toFixed(2)}. Revisa la cantidad y el precio unitario ` +
+        "(las unidades de la factura y del producto deben coincidir)."
+      );
+    }
+  }
+  return null;
+}
 
 /** Sequelize SELECT: sometimes `[rows]`, sometimes `[rows, metadata]` — return `rows` only. */
 function selectResultRows(result) {
@@ -231,6 +302,12 @@ const saveInvoiceStock = async (req, res) => {
       return res.status(400).json({ mensaje: "Se requiere comprobante e items" });
     }
 
+    const reconciliacionError = findItemReconciliationError(items);
+    if (reconciliacionError) {
+      await safeRollbackSequelizeTransaction(t);
+      return res.status(400).json({ mensaje: reconciliacionError });
+    }
+
     const idlocalNum = Number(idlocalRaw);
     if (!Number.isFinite(idlocalNum) || !INVOICE_STOCK_LOCAL_NUMS.includes(idlocalNum)) {
       await safeRollbackSequelizeTransaction(t);
@@ -244,6 +321,16 @@ const saveInvoiceStock = async (req, res) => {
       idproveedor = await findIdProveedorByCuit(sql, t, cuitProveedor);
     }
 
+    // El proveedor es obligatorio: sin el (idproveedor = 0) la factura se
+    // registraria sin vincular al emisor y quedaria mal cargada.
+    if (idproveedor <= 0) {
+      await safeRollbackSequelizeTransaction(t);
+      return res.status(400).json({
+        mensaje:
+          "No se pudo identificar al proveedor. Verifica el CUIT del emisor: debe tener 11 digitos y corresponder a un proveedor habilitado.",
+      });
+    }
+
     await assertInvoiceStockReferences(sql, t, {
       idlocal: idlocalNum,
       iddeposito,
@@ -253,8 +340,7 @@ const saveInvoiceStock = async (req, res) => {
 
     const idbalance = await fetchOpenBalanceIdForLocal(sql, t, idlocalNum);
 
-    const tipoMap = { A: "FCA", B: "FCB", C: "FCC" };
-    const tipoComprobante = tipoMap[comprobante.tipo] || comprobante.tipo || "FCA";
+    const tipoComprobante = resolveTipoComprobante(comprobante);
     const tipoSql = String(tipoComprobante).trim().slice(0, CPB_MAX.tipocomprobante);
     // Right-align prefix to the legacy char(4) column: AFIP "Punto de Venta" is 5 digits
     // (e.g. "00001") and `slice(0, 4)` would drop the only meaningful digit.
